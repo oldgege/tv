@@ -1,0 +1,59 @@
+<!-- res/layout/item_monster_option.xml -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="130dp"
+    android:layout_height="150dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@android:color/transparent"
+    android:padding="4dp"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <!-- 圆形身体 -->
+    <ImageView
+        android:id="@+id/iv_monster_body"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_centerInParent="true"
+        android:src="@drawable/monster_body_1" />
+
+    <!-- 左眼 -->
+    <View
+        android:id="@+id/eye_left"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginTop="18dp"
+        android:layout_marginStart="26dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:background="@drawable/eye_white" />
+
+    <!-- 右眼 -->
+    <View
+        android:id="@+id/eye_right"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginTop="18dp"
+        android:layout_marginEnd="26dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentTop="true"
+        android:background="@drawable/eye_white" />
+
+    <!-- 选项文字 -->
+    <TextView
+        android:id="@+id/tv_option_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:text="选项"
+        android:textColor="#FFFFFF"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:shadowColor="#000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="4" />
+
+
+</RelativeLayout>

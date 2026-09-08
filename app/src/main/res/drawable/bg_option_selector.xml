@@ -1,0 +1,5 @@
+<!-- res/drawable/bg_option_selector.xml -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:drawable="@drawable/bg_option_focused" />
+    <item android:drawable="@drawable/bg_option_normal" />
+</selector>

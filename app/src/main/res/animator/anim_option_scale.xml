@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 聚焦时放大 -->
+    <item android:state_focused="true">
+        <set>
+            <objectAnimator
+                android:propertyName="scaleX"
+                android:valueTo="1.05"
+                android:duration="150"
+                android:interpolator="@android:interpolator/accelerate_decelerate" />
+            <objectAnimator
+                android:propertyName="scaleY"
+                android:valueTo="1.05"
+                android:duration="150"
+                android:interpolator="@android:interpolator/accelerate_decelerate" />
+        </set>
+    </item>
+    <!-- 非聚焦时恢复原始大小 -->
+    <item>
+        <set>
+            <objectAnimator
+                android:propertyName="scaleX"
+                android:valueTo="1.0"
+                android:duration="150"
+                android:interpolator="@android:interpolator/accelerate_decelerate" />
+            <objectAnimator
+                android:propertyName="scaleY"
+                android:valueTo="1.0"
+                android:duration="150"
+                android:interpolator="@android:interpolator/accelerate_decelerate" />
+        </set>
+    </item>
+</selector>

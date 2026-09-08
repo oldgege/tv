@@ -1,0 +1,15 @@
+<!-- res/drawable/ic_fail.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- 红色背景圆 -->
+    <path
+        android:fillColor="#FF1744"
+        android:pathData="M100,10 C50,10 10,50 10,100 C10,150 50,190 100,190 C150,190 190,150 190,100 C190,50 150,10 100,10 Z" />
+    <!-- 白色大叉叉 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M140,70 L120,100 L140,130 L130,140 L100,120 L70,140 L60,130 L80,100 L60,70 L70,60 L100,80 L130,60 Z" />
+</vector>

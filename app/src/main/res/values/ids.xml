@@ -1,0 +1,4 @@
+<!-- res/values/ids.xml -->
+<resources>
+    <item name="anim_tag" type="id" />
+</resources>
