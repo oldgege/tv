@@ -1,0 +1,60 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.greenrobot.greendao'
+greendao {
+
+    //数据库版本号
+    schemaVersion 1
+
+    //greendao插件自动生成的代码的包名,即DaoMaster 、DaoSession、Dao的包名，默认为数据库表实体类的包名
+    //daoPackage android.defaultConfig.applicationId
+
+    //greendao插件自动生成的代码保存路径，即DaoMaster 、DaoSession、Dao存放的目录，默认路径build/generated/source/greendao
+    //targetGenDir 'src/main/java'
+
+    //是否生成单元测试代码，值为ture或false，默认是ture
+    generateTests false
+
+    //生成测试源码的路径，默认src/androidTest/java
+    //targetGenDirTests 'src/androidTest/java'
+
+}
+android {
+    compileSdkVersion 28
+
+    defaultConfig {
+        applicationId "com.wengyj.tv"
+        minSdkVersion 22
+        targetSdkVersion 28
+        versionCode 1
+        versionName "1.0"
+
+    }
+    signingConfigs {
+        config {
+            keyAlias 'wengyj'
+            keyPassword 'wengyj'
+            storeFile file('./../wengyj_jks.jks')
+            storePassword 'wengyj'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.config
+        }
+        debug {
+            signingConfig signingConfigs.config
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+
+    implementation 'androidx.leanback:leanback:1.0.0'
+    implementation 'com.github.bumptech.glide:glide:4.11.0'
+}
