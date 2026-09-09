@@ -4,13 +4,42 @@
     android:layout_height="match_parent"
     android:background="#1E1E1E">
 
+    <!-- 顶部星星 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_star_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⭐"
+            android:textSize="28sp"
+            android:textColor="#FFD700" />
+
+        <TextView
+            android:id="@+id/tv_stars"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="20"
+            android:textColor="#FFD700"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
     <!-- 题目和选项 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
-        android:padding="32dp">
+        android:padding="32dp"
+        android:layout_marginBottom="60dp">
 
         <TextView
             android:id="@+id/tv_question"
@@ -38,26 +67,18 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center" />
+
     </LinearLayout>
 
-    <!-- 失败图片（仅作为后备，但实际不再使用） -->
-    <ImageView
-        android:id="@+id/iv_fullscreen_fail"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/ic_fail"
-        android:scaleType="center"
-        android:visibility="gone" />
-
-    <!-- 成功视频 -->
-    <TextureView
+    <!-- 成功视频 VideoView -->
+    <VideoView
         android:id="@+id/video_success"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />
 
-    <!-- 错误视频 -->
-    <TextureView
+    <!-- 错误视频 VideoView -->
+    <VideoView
         android:id="@+id/video_error"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

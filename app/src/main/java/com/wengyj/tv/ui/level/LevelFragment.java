@@ -5,6 +5,7 @@ import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -29,6 +30,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private LevelAdapter adapter;
     private ProgressManager progressManager;
     private List<Level> levels;
+    private TextView tvStars; // 显示星星数量
 
     private TextToSpeech tts;
     private boolean isTtsReady = false;
@@ -57,8 +59,13 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_level, container, false);
         recyclerView = view.findViewById(R.id.recycler_levels);
+        tvStars = view.findViewById(R.id.tv_stars); // 需要在布局中添加
+
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 4));
         recyclerView.setHasFixedSize(true);
+
+        // 更新星星显示
+        updateStarsDisplay();
 
         List<Chapter> all = ChapterDataSource.getAllChapters(getContext());
         Chapter chapter = null;
@@ -70,11 +77,11 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
         if (chapter != null) {
             levels = chapter.getLevels();
-            // ---- 修复：基于列表索引判断解锁 ----
+            // 更新解锁状态
             for (int i = 0; i < levels.size(); i++) {
                 Level level = levels.get(i);
                 if (i == 0) {
-                    level.setLocked(false); // 第一关总是解锁
+                    level.setLocked(false);
                 } else {
                     Level prevLevel = levels.get(i - 1);
                     boolean prevCompleted = progressManager.isLevelCompleted(prevLevel.getId());
@@ -105,6 +112,36 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         return view;
     }
 
+    private void updateStarsDisplay() {
+        if (tvStars != null) {
+            int stars = progressManager.getStars();
+            tvStars.setText("⭐ " + stars);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 每次返回时刷新星星显示
+        updateStarsDisplay();
+        // 刷新关卡解锁状态（可能因星星耗尽而重置）
+        if (adapter != null && levels != null) {
+            // 重新检查解锁状态
+            for (int i = 0; i < levels.size(); i++) {
+                Level level = levels.get(i);
+                if (i == 0) {
+                    level.setLocked(false);
+                } else {
+                    Level prevLevel = levels.get(i - 1);
+                    boolean prevCompleted = progressManager.isLevelCompleted(prevLevel.getId());
+                    level.setLocked(!prevCompleted);
+                }
+                level.setCompleted(progressManager.isLevelCompleted(level.getId()));
+            }
+            adapter.notifyDataSetChanged();
+        }
+    }
+
     // ---------- TTS ----------
     @Override
     public void onInit(int status) {
@@ -122,10 +159,9 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
     }
 
-    // 在 LevelFragment 中，修改 speakText 方法：
     private void speakText(String text) {
         if (tts != null && isTtsReady && text != null && !text.isEmpty()) {
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null); // 兼容 API 18
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
         }
     }
 

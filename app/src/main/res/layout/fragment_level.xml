@@ -1,8 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.recyclerview.widget.RecyclerView
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/recycler_levels"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp"
-    android:clipToPadding="false" />
+    android:orientation="vertical"
+    android:background="#1E1E1E">
+
+    <TextView
+        android:id="@+id/tv_stars"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⭐ 20"
+        android:textSize="28sp"
+        android:textColor="#FFD700"
+        android:layout_margin="16dp"
+        android:layout_gravity="end" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_levels"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        android:clipToPadding="false" />
+
+</LinearLayout>

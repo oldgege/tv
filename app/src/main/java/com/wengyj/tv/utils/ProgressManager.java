@@ -12,6 +12,7 @@ public class ProgressManager {
     private static final String KEY_COMPLETED = "completed_levels";
     private static final String KEY_CURRENT_CHAPTER = "current_chapter";
     private static final String KEY_CURRENT_LEVEL = "current_level";
+    private static final String KEY_STARS = "stars";
 
     private SharedPreferences prefs;
 
@@ -19,6 +20,28 @@ public class ProgressManager {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
+    // ---------- 星星管理 ----------
+    public int getStars() {
+        return prefs.getInt(KEY_STARS, 20); // 初始20颗
+    }
+
+    public void addStar() {
+        int current = getStars();
+        prefs.edit().putInt(KEY_STARS, current + 1).apply();
+    }
+
+    public void deductStars(int count) {
+        int current = getStars();
+        int newVal = current - count;
+        if (newVal < 0) newVal = 0;
+        prefs.edit().putInt(KEY_STARS, newVal).apply();
+    }
+
+    public void resetStars() {
+        prefs.edit().putInt(KEY_STARS, 20).apply();
+    }
+
+    // ---------- 关卡进度 ----------
     public void saveCompletedLevel(int levelId) {
         Set<String> set = getCompletedLevelSet();
         set.add(String.valueOf(levelId));
@@ -51,6 +74,17 @@ public class ProgressManager {
         return getCompletedLevels().contains(levelId);
     }
 
+    // ---------- 重置所有进度（星星和关卡） ----------
+    public void resetAllProgress() {
+        prefs.edit()
+                .putString(KEY_COMPLETED, "")
+                .putInt(KEY_STARS, 20)
+                .putInt(KEY_CURRENT_CHAPTER, 1)
+                .putInt(KEY_CURRENT_LEVEL, 1)
+                .apply();
+    }
+
+    // ---------- 当前进度 ----------
     public void saveCurrentProgress(int chapterId, int levelId) {
         prefs.edit()
                 .putInt(KEY_CURRENT_CHAPTER, chapterId)

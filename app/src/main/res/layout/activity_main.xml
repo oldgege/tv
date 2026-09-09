@@ -15,8 +15,9 @@
         android:focusableInTouchMode="true"
         android:clickable="true" />
 
-    <TextureView
-        android:id="@+id/video_texture"
+    <!-- VideoView 全屏居中播放 -->
+    <VideoView
+        android:id="@+id/video_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />

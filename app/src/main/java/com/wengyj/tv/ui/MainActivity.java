@@ -1,16 +1,13 @@
 package com.wengyj.tv.ui;
 
-import android.graphics.Matrix;
-import android.graphics.SurfaceTexture;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.view.Surface;
-import android.view.TextureView;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.VideoView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentManager;
 
@@ -19,15 +16,14 @@ import com.wengyj.tv.ui.chapter.ChapterFragment;
 import com.wengyj.tv.ui.level.LevelFragment;
 import com.wengyj.tv.ui.game.GameFragment;
 
-import java.io.IOException;
-
 public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
-    private TextureView videoTexture;
+    private VideoView videoView;
     private FrameLayout fragmentContainer;
-    private MediaPlayer mediaPlayer;
     private Handler handler = new Handler();
-    private boolean isVideoComplete = false;
+
+    private int[] videoResources = {R.raw.begin2, R.raw.begin};
+    private int currentIndex = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         fragmentManager = getSupportFragmentManager();
-        videoTexture = findViewById(R.id.video_texture);
+        videoView = findViewById(R.id.video_view);
         fragmentContainer = findViewById(R.id.fragment_container);
 
         fragmentContainer.setFocusable(true);
@@ -44,7 +40,8 @@ public class MainActivity extends AppCompatActivity {
         fragmentContainer.setClickable(true);
         fragmentContainer.requestFocus();
 
-        startIntroVideo();
+        // 开始播放第一个视频
+        playNextVideo();
     }
 
     private void setFullScreen() {
@@ -64,98 +61,58 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void startIntroVideo() {
+    private void playNextVideo() {
+        if (currentIndex >= videoResources.length) {
+            // 所有视频播完，进入菜单
+            finishIntro();
+            return;
+        }
+
+        // 显示 VideoView，隐藏 fragment
         fragmentContainer.setVisibility(View.GONE);
-        videoTexture.setVisibility(View.VISIBLE);
+        videoView.setVisibility(View.VISIBLE);
 
-        videoTexture.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-            @Override
-            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
-                Surface surface = new Surface(surfaceTexture);
-                mediaPlayer = new MediaPlayer();
-                try {
-                    Uri videoUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.begin);
-                    mediaPlayer.setDataSource(getApplicationContext(), videoUri);
-                    mediaPlayer.setSurface(surface);
-                    mediaPlayer.prepareAsync();
+        int resId = videoResources[currentIndex];
+        String uriPath = "android.resource://" + getPackageName() + "/" + resId;
+        videoView.setVideoURI(Uri.parse(uriPath));
 
-                    mediaPlayer.setOnPreparedListener(mp -> {
-                        mediaPlayer.start();
-                        setVideoCenter(width, height);
-                    });
-
-                    mediaPlayer.setOnCompletionListener(mp -> {
-                        isVideoComplete = true;
-                        finishIntro();
-                    });
-
-                    mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                        isVideoComplete = true;
-                        finishIntro();
-                        return true;
-                    });
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    isVideoComplete = true;
-                    finishIntro();
-                }
-            }
-
-            @Override
-            public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {
-                setVideoCenter(width, height);
-            }
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
-                if (mediaPlayer != null) {
-                    mediaPlayer.release();
-                    mediaPlayer = null;
-                }
-                return true;
-            }
-
-            @Override
-            public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {}
+        // 设置缩放模式（尽量居中，但不拉伸）
+        videoView.setOnPreparedListener(mp -> {
+            // 设置宽高比适应屏幕，不裁剪
+            mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            videoView.start();
         });
-    }
 
-    private void setVideoCenter(int viewWidth, int viewHeight) {
-        if (mediaPlayer == null || videoTexture == null) return;
-        int videoWidth = mediaPlayer.getVideoWidth();
-        int videoHeight = mediaPlayer.getVideoHeight();
-        if (videoWidth <= 0 || videoHeight <= 0) return;
+        videoView.setOnCompletionListener(mp -> {
+            // 当前播放完成，播放下一个
+            currentIndex++;
+            playNextVideo();
+        });
 
-        float scaleX = (float) viewWidth / videoWidth;
-        float scaleY = (float) viewHeight / videoHeight;
-        float scale = Math.min(scaleX, scaleY);
+        videoView.setOnErrorListener((mp, what, extra) -> {
+            // 出错则跳过
+            currentIndex++;
+            playNextVideo();
+            return true;
+        });
 
-        int scaledWidth = (int) (videoWidth * scale);
-        int scaledHeight = (int) (videoHeight * scale);
-        int offsetX = (viewWidth - scaledWidth) / 2;
-        int offsetY = (viewHeight - scaledHeight) / 2;
-
-        Matrix matrix = new Matrix();
-        matrix.setScale(scale, scale);
-        matrix.postTranslate(offsetX, offsetY);
-        videoTexture.setTransform(matrix);
+        // 超时保护：如果5秒后没有开始播放，跳过
+        handler.postDelayed(() -> {
+            if (!videoView.isPlaying()) {
+                currentIndex++;
+                playNextVideo();
+            }
+        }, 5000);
     }
 
     private void finishIntro() {
         if (fragmentContainer.getVisibility() == View.VISIBLE) return;
         runOnUiThread(() -> {
-            videoTexture.setVisibility(View.GONE);
+            videoView.setVisibility(View.GONE);
+            videoView.stopPlayback();
             fragmentContainer.setVisibility(View.VISIBLE);
             fragmentContainer.requestFocus();
             showChapterFragment();
-
-            handler.post(() -> {
-                if (mediaPlayer != null) {
-                    mediaPlayer.release();
-                    mediaPlayer = null;
-                }
-            });
             handler.removeCallbacksAndMessages(null);
         });
     }
@@ -212,9 +169,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (mediaPlayer != null) {
-            mediaPlayer.release();
-            mediaPlayer = null;
+        if (videoView != null) {
+            videoView.stopPlayback();
         }
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();

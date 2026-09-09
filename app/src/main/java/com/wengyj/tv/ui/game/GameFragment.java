@@ -3,8 +3,6 @@ package com.wengyj.tv.ui.game;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
-import android.graphics.Matrix;
-import android.graphics.SurfaceTexture;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
@@ -12,8 +10,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
-import android.view.Surface;
-import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -21,6 +17,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
+import android.widget.VideoView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -43,10 +40,10 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private int levelId;
     private Level currentLevel;
     private TextView tvQuestion, tvHint;
+    private TextView tvStars;
     private LinearLayout optionsContainer;
-    private ImageView ivFullscreenFail;
-    private TextureView videoSuccess;
-    private TextureView videoError;
+    private VideoView videoSuccess;
+    private VideoView videoError;
     private ProgressManager progressManager;
 
     private TextToSpeech tts;
@@ -54,8 +51,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private Handler handler = new Handler();
 
     private boolean isAnimating = false;
-    private MediaPlayer successPlayer;
-    private MediaPlayer errorPlayer;
 
     public static GameFragment newInstance(int levelId) {
         GameFragment fragment = new GameFragment();
@@ -82,10 +77,12 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         View view = inflater.inflate(R.layout.fragment_game, container, false);
         tvQuestion = view.findViewById(R.id.tv_question);
         tvHint = view.findViewById(R.id.tv_hint);
+        tvStars = view.findViewById(R.id.tv_stars);
         optionsContainer = view.findViewById(R.id.options_container);
-        ivFullscreenFail = view.findViewById(R.id.iv_fullscreen_fail);
         videoSuccess = view.findViewById(R.id.video_success);
         videoError = view.findViewById(R.id.video_error);
+
+        updateStarsDisplay();
 
         optionsContainer.setOrientation(LinearLayout.HORIZONTAL);
         optionsContainer.setGravity(android.view.Gravity.CENTER);
@@ -116,6 +113,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
         buildOptions();
         return view;
+    }
+
+    private void updateStarsDisplay() {
+        if (tvStars != null) {
+            int stars = progressManager.getStars();
+            tvStars.setText(String.valueOf(stars));
+        }
     }
 
     private void buildOptions() {
@@ -207,7 +211,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private void speakText(String text) {
         if (tts != null && isTtsReady && text != null && !text.isEmpty()) {
-            // 兼容 API 18：使用无 utteranceId 的重载
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
         }
     }
@@ -219,13 +222,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             tts.shutdown();
             tts = null;
         }
-        if (successPlayer != null) {
-            successPlayer.release();
-            successPlayer = null;
+        if (videoSuccess != null) {
+            videoSuccess.stopPlayback();
         }
-        if (errorPlayer != null) {
-            errorPlayer.release();
-            errorPlayer = null;
+        if (videoError != null) {
+            videoError.stopPlayback();
         }
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
@@ -265,159 +266,72 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 成功视频播放 ----------
+    // ---------- 播放成功视频 ----------
     private void playSuccessVideo(final Runnable onComplete) {
         videoSuccess.setVisibility(View.VISIBLE);
-        videoSuccess.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-            @Override
-            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
-                Surface surface = new Surface(surfaceTexture);
-                successPlayer = new MediaPlayer();
-                try {
-                    Uri videoUri = Uri.parse("android.resource://" + getContext().getPackageName() + "/" + R.raw.success);
-                    successPlayer.setDataSource(getContext(), videoUri);
-                    successPlayer.setSurface(surface);
-                    successPlayer.prepareAsync();
-
-                    successPlayer.setOnPreparedListener(mp -> {
-                        successPlayer.start();
-                        setVideoCenter(successPlayer, videoSuccess, width, height);
-                    });
-
-                    successPlayer.setOnCompletionListener(mp -> {
-                        if (onComplete != null) {
-                            onComplete.run();
-                        }
-                    });
-
-                    successPlayer.setOnErrorListener((mp, what, extra) -> {
-                        if (onComplete != null) {
-                            onComplete.run();
-                        }
-                        return true;
-                    });
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    if (onComplete != null) {
-                        onComplete.run();
-                    }
-                }
-            }
-
-            @Override
-            public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {
-                setVideoCenter(successPlayer, videoSuccess, width, height);
-            }
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
-                if (successPlayer != null) {
-                    successPlayer.release();
-                    successPlayer = null;
-                }
-                return true;
-            }
-
-            @Override
-            public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {}
+        String uri = "android.resource://" + getContext().getPackageName() + "/" + R.raw.success;
+        videoSuccess.setVideoURI(Uri.parse(uri));
+        videoSuccess.setOnPreparedListener(mp -> {
+            mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            videoSuccess.start();
+        });
+        videoSuccess.setOnCompletionListener(mp -> {
+            videoSuccess.setVisibility(View.GONE);
+            videoSuccess.stopPlayback();
+            if (onComplete != null) onComplete.run();
+        });
+        videoSuccess.setOnErrorListener((mp, what, extra) -> {
+            videoSuccess.setVisibility(View.GONE);
+            videoSuccess.stopPlayback();
+            if (onComplete != null) onComplete.run();
+            return true;
         });
     }
 
-    // ---------- 错误视频播放 ----------
+    // ---------- 播放错误视频 ----------
     private void playErrorVideo(final Runnable onComplete) {
         videoError.setVisibility(View.VISIBLE);
-        videoError.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-            @Override
-            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
-                Surface surface = new Surface(surfaceTexture);
-                errorPlayer = new MediaPlayer();
-                try {
-                    Uri videoUri = Uri.parse("android.resource://" + getContext().getPackageName() + "/" + R.raw.error);
-                    errorPlayer.setDataSource(getContext(), videoUri);
-                    errorPlayer.setSurface(surface);
-                    errorPlayer.prepareAsync();
-
-                    errorPlayer.setOnPreparedListener(mp -> {
-                        errorPlayer.start();
-                        setVideoCenter(errorPlayer, videoError, width, height);
-                    });
-
-                    errorPlayer.setOnCompletionListener(mp -> {
-                        if (onComplete != null) {
-                            onComplete.run();
-                        }
-                    });
-
-                    errorPlayer.setOnErrorListener((mp, what, extra) -> {
-                        if (onComplete != null) {
-                            onComplete.run();
-                        }
-                        return true;
-                    });
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    if (onComplete != null) {
-                        onComplete.run();
-                    }
-                }
-            }
-
-            @Override
-            public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {
-                setVideoCenter(errorPlayer, videoError, width, height);
-            }
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
-                if (errorPlayer != null) {
-                    errorPlayer.release();
-                    errorPlayer = null;
-                }
-                return true;
-            }
-
-            @Override
-            public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {}
+        String uri = "android.resource://" + getContext().getPackageName() + "/" + R.raw.error;
+        videoError.setVideoURI(Uri.parse(uri));
+        videoError.setOnPreparedListener(mp -> {
+            mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            videoError.start();
+        });
+        videoError.setOnCompletionListener(mp -> {
+            videoError.setVisibility(View.GONE);
+            videoError.stopPlayback();
+            if (onComplete != null) onComplete.run();
+        });
+        videoError.setOnErrorListener((mp, what, extra) -> {
+            videoError.setVisibility(View.GONE);
+            videoError.stopPlayback();
+            if (onComplete != null) onComplete.run();
+            return true;
         });
     }
 
-    // ---------- 视频居中缩放 ----------
-    private void setVideoCenter(MediaPlayer player, TextureView texture, int viewWidth, int viewHeight) {
-        if (player == null || texture == null) return;
-        int videoWidth = player.getVideoWidth();
-        int videoHeight = player.getVideoHeight();
-        if (videoWidth <= 0 || videoHeight <= 0) return;
-
-        float scaleX = (float) viewWidth / videoWidth;
-        float scaleY = (float) viewHeight / videoHeight;
-        float scale = Math.min(scaleX, scaleY);
-
-        int scaledWidth = (int) (videoWidth * scale);
-        int scaledHeight = (int) (videoHeight * scale);
-        int offsetX = (viewWidth - scaledWidth) / 2;
-        int offsetY = (viewHeight - scaledHeight) / 2;
-
-        Matrix matrix = new Matrix();
-        matrix.setScale(scale, scale);
-        matrix.postTranslate(offsetX, offsetY);
-        texture.setTransform(matrix);
+    // ---------- 重置所有进度并返回菜单 ----------
+    private void resetAllProgressAndGoHome() {
+        progressManager.resetAllProgress();
+        MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) {
+            activity.navigateToChapter();
+            Toast.makeText(activity, "💫 星星用完了，重新开始吧！", Toast.LENGTH_LONG).show();
+            speakText("星星用完了，重新开始吧");
+        }
     }
 
     // ---------- 答题 ----------
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
         Question q = currentLevel.getQuestion();
         if (selectedIndex == q.getCorrectAnswerIndex()) {
-            isAnimating = true;
+            // 正确
+            progressManager.addStar();
             progressManager.saveCompletedLevel(currentLevel.getId());
+            updateStarsDisplay();
 
+            isAnimating = true;
             playSuccessVideo(() -> {
-                videoSuccess.setVisibility(View.GONE);
-                if (successPlayer != null) {
-                    successPlayer.release();
-                    successPlayer = null;
-                }
                 int nextId = getNextLevelId();
                 MainActivity activity = (MainActivity) getActivity();
                 if (activity != null) {
@@ -431,14 +345,18 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 isAnimating = false;
             });
         } else {
-            isAnimating = true;
+            // 错误
+            progressManager.deductStars(2);
+            updateStarsDisplay();
+            int remainingStars = progressManager.getStars();
 
+            if (remainingStars <= 0) {
+                resetAllProgressAndGoHome();
+                return;
+            }
+
+            isAnimating = true;
             playErrorVideo(() -> {
-                videoError.setVisibility(View.GONE);
-                if (errorPlayer != null) {
-                    errorPlayer.release();
-                    errorPlayer = null;
-                }
                 reshuffleOptions();
                 isAnimating = false;
             });
