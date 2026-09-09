@@ -3,10 +3,17 @@ package com.wengyj.tv.ui.game;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.graphics.Matrix;
+import android.graphics.SurfaceTexture;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
+import android.view.Surface;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -38,7 +45,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private TextView tvQuestion, tvHint;
     private LinearLayout optionsContainer;
     private ImageView ivFullscreenFail;
-    private ImageView ivFullscreenSuccess;
+    private TextureView videoSuccess;
+    private TextureView videoError;
     private ProgressManager progressManager;
 
     private TextToSpeech tts;
@@ -46,6 +54,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private Handler handler = new Handler();
 
     private boolean isAnimating = false;
+    private MediaPlayer successPlayer;
+    private MediaPlayer errorPlayer;
 
     public static GameFragment newInstance(int levelId) {
         GameFragment fragment = new GameFragment();
@@ -74,7 +84,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         tvHint = view.findViewById(R.id.tv_hint);
         optionsContainer = view.findViewById(R.id.options_container);
         ivFullscreenFail = view.findViewById(R.id.iv_fullscreen_fail);
-        ivFullscreenSuccess = view.findViewById(R.id.iv_fullscreen_success);
+        videoSuccess = view.findViewById(R.id.video_success);
+        videoError = view.findViewById(R.id.video_error);
 
         optionsContainer.setOrientation(LinearLayout.HORIZONTAL);
         optionsContainer.setGravity(android.view.Gravity.CENTER);
@@ -184,6 +195,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             tts.setSpeechRate(0.5f);
             tts.setPitch(1.1f);
             isTtsReady = true;
+
             if (currentLevel != null && tvQuestion != null) {
                 speakText(currentLevel.getQuestion().getPrompt());
             }
@@ -195,7 +207,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private void speakText(String text) {
         if (tts != null && isTtsReady && text != null && !text.isEmpty()) {
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+            // 兼容 API 18：使用无 utteranceId 的重载
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
         }
     }
 
@@ -205,6 +218,14 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             tts.stop();
             tts.shutdown();
             tts = null;
+        }
+        if (successPlayer != null) {
+            successPlayer.release();
+            successPlayer = null;
+        }
+        if (errorPlayer != null) {
+            errorPlayer.release();
+            errorPlayer = null;
         }
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
@@ -244,75 +265,159 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 失败全屏动画 ----------
-    private void showFailAnimation(final Runnable onComplete) {
-        ivFullscreenFail.setVisibility(View.VISIBLE);
-        ivFullscreenFail.setScaleX(0f);
-        ivFullscreenFail.setScaleY(0f);
-        ivFullscreenFail.animate()
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(400)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
-                .start();
+    // ---------- 成功视频播放 ----------
+    private void playSuccessVideo(final Runnable onComplete) {
+        videoSuccess.setVisibility(View.VISIBLE);
+        videoSuccess.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
+                Surface surface = new Surface(surfaceTexture);
+                successPlayer = new MediaPlayer();
+                try {
+                    Uri videoUri = Uri.parse("android.resource://" + getContext().getPackageName() + "/" + R.raw.success);
+                    successPlayer.setDataSource(getContext(), videoUri);
+                    successPlayer.setSurface(surface);
+                    successPlayer.prepareAsync();
 
-        handler.postDelayed(() -> {
-            speakText(currentLevel.getQuestion().getPrompt());
+                    successPlayer.setOnPreparedListener(mp -> {
+                        successPlayer.start();
+                        setVideoCenter(successPlayer, videoSuccess, width, height);
+                    });
 
-            handler.postDelayed(() -> {
-                ivFullscreenFail.animate()
-                        .alpha(0f)
-                        .setDuration(300)
-                        .withEndAction(() -> {
-                            ivFullscreenFail.setVisibility(View.GONE);
-                            ivFullscreenFail.setAlpha(1f);
-                            if (onComplete != null) {
-                                onComplete.run();
-                            }
-                        })
-                        .start();
-            }, 1500);
-        }, 2500);
-    }
-
-    // ---------- 成功全屏动画 ----------
-    private void showSuccessAnimation(final Runnable onComplete) {
-        ivFullscreenSuccess.setVisibility(View.VISIBLE);
-        ivFullscreenSuccess.setScaleX(0f);
-        ivFullscreenSuccess.setScaleY(0f);
-        ivFullscreenSuccess.animate()
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(400)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
-                .start();
-
-        // 延迟 2 秒后淡出并执行回调
-        handler.postDelayed(() -> {
-            ivFullscreenSuccess.animate()
-                    .alpha(0f)
-                    .setDuration(300)
-                    .withEndAction(() -> {
-                        ivFullscreenSuccess.setVisibility(View.GONE);
-                        ivFullscreenSuccess.setAlpha(1f);
+                    successPlayer.setOnCompletionListener(mp -> {
                         if (onComplete != null) {
                             onComplete.run();
                         }
-                    })
-                    .start();
-        }, 2000); // 2秒后隐藏并跳转
+                    });
+
+                    successPlayer.setOnErrorListener((mp, what, extra) -> {
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
+                        return true;
+                    });
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
+                }
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {
+                setVideoCenter(successPlayer, videoSuccess, width, height);
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+                if (successPlayer != null) {
+                    successPlayer.release();
+                    successPlayer = null;
+                }
+                return true;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {}
+        });
+    }
+
+    // ---------- 错误视频播放 ----------
+    private void playErrorVideo(final Runnable onComplete) {
+        videoError.setVisibility(View.VISIBLE);
+        videoError.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
+                Surface surface = new Surface(surfaceTexture);
+                errorPlayer = new MediaPlayer();
+                try {
+                    Uri videoUri = Uri.parse("android.resource://" + getContext().getPackageName() + "/" + R.raw.error);
+                    errorPlayer.setDataSource(getContext(), videoUri);
+                    errorPlayer.setSurface(surface);
+                    errorPlayer.prepareAsync();
+
+                    errorPlayer.setOnPreparedListener(mp -> {
+                        errorPlayer.start();
+                        setVideoCenter(errorPlayer, videoError, width, height);
+                    });
+
+                    errorPlayer.setOnCompletionListener(mp -> {
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
+                    });
+
+                    errorPlayer.setOnErrorListener((mp, what, extra) -> {
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
+                        return true;
+                    });
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
+                }
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {
+                setVideoCenter(errorPlayer, videoError, width, height);
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+                if (errorPlayer != null) {
+                    errorPlayer.release();
+                    errorPlayer = null;
+                }
+                return true;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {}
+        });
+    }
+
+    // ---------- 视频居中缩放 ----------
+    private void setVideoCenter(MediaPlayer player, TextureView texture, int viewWidth, int viewHeight) {
+        if (player == null || texture == null) return;
+        int videoWidth = player.getVideoWidth();
+        int videoHeight = player.getVideoHeight();
+        if (videoWidth <= 0 || videoHeight <= 0) return;
+
+        float scaleX = (float) viewWidth / videoWidth;
+        float scaleY = (float) viewHeight / videoHeight;
+        float scale = Math.min(scaleX, scaleY);
+
+        int scaledWidth = (int) (videoWidth * scale);
+        int scaledHeight = (int) (videoHeight * scale);
+        int offsetX = (viewWidth - scaledWidth) / 2;
+        int offsetY = (viewHeight - scaledHeight) / 2;
+
+        Matrix matrix = new Matrix();
+        matrix.setScale(scale, scale);
+        matrix.postTranslate(offsetX, offsetY);
+        texture.setTransform(matrix);
     }
 
     // ---------- 答题 ----------
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
         Question q = currentLevel.getQuestion();
         if (selectedIndex == q.getCorrectAnswerIndex()) {
-            // 正确
             isAnimating = true;
             progressManager.saveCompletedLevel(currentLevel.getId());
-            speakText("太棒了，闯关成功！");
 
-            showSuccessAnimation(() -> {
+            playSuccessVideo(() -> {
+                videoSuccess.setVisibility(View.GONE);
+                if (successPlayer != null) {
+                    successPlayer.release();
+                    successPlayer = null;
+                }
                 int nextId = getNextLevelId();
                 MainActivity activity = (MainActivity) getActivity();
                 if (activity != null) {
@@ -326,11 +431,14 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 isAnimating = false;
             });
         } else {
-            // 错误
             isAnimating = true;
-            speakText("宝宝请重新来过");
 
-            showFailAnimation(() -> {
+            playErrorVideo(() -> {
+                videoError.setVisibility(View.GONE);
+                if (errorPlayer != null) {
+                    errorPlayer.release();
+                    errorPlayer = null;
+                }
                 reshuffleOptions();
                 isAnimating = false;
             });

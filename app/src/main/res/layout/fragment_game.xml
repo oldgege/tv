@@ -1,10 +1,10 @@
-<!-- res/layout/fragment_game.xml -->
+<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#1E1E1E">
 
-    <!-- 原有内容 -->
+    <!-- 题目和选项 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -38,27 +38,29 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center" />
-
     </LinearLayout>
 
-    <!-- 全屏失败覆盖层（X） -->
+    <!-- 失败图片（仅作为后备，但实际不再使用） -->
     <ImageView
         android:id="@+id/iv_fullscreen_fail"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:src="@drawable/ic_fail"
         android:scaleType="center"
-        android:visibility="gone"
-        android:background="#CC000000" />
+        android:visibility="gone" />
 
-    <!-- 全屏成功覆盖层（✓） -->
-    <ImageView
-        android:id="@+id/iv_fullscreen_success"
+    <!-- 成功视频 -->
+    <TextureView
+        android:id="@+id/video_success"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@drawable/ic_success"
-        android:scaleType="center"
-        android:visibility="gone"
-        android:background="#CC000000" />
+        android:visibility="gone" />
+
+    <!-- 错误视频 -->
+    <TextureView
+        android:id="@+id/video_error"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
 
 </FrameLayout>

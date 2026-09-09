@@ -30,7 +30,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private ProgressManager progressManager;
     private List<Level> levels;
 
-    // TTS 对象
     private TextToSpeech tts;
     private boolean isTtsReady = false;
 
@@ -49,7 +48,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        // 初始化 TTS
         tts = new TextToSpeech(getContext(), this);
     }
 
@@ -62,7 +60,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 4));
         recyclerView.setHasFixedSize(true);
 
-        // 获取该章节的关卡列表
         List<Chapter> all = ChapterDataSource.getAllChapters(getContext());
         Chapter chapter = null;
         for (Chapter c : all) {
@@ -73,29 +70,26 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
         if (chapter != null) {
             levels = chapter.getLevels();
-            // 更新解锁状态
-            for (Level level : levels) {
-                if (level.getId() == 1) {
-                    level.setLocked(false);
+            // ---- 修复：基于列表索引判断解锁 ----
+            for (int i = 0; i < levels.size(); i++) {
+                Level level = levels.get(i);
+                if (i == 0) {
+                    level.setLocked(false); // 第一关总是解锁
                 } else {
-                    // 检查前一关是否完成
-                    int prevId = level.getId() - 1;
-                    boolean prevCompleted = progressManager.isLevelCompleted(prevId);
+                    Level prevLevel = levels.get(i - 1);
+                    boolean prevCompleted = progressManager.isLevelCompleted(prevLevel.getId());
                     level.setLocked(!prevCompleted);
                 }
                 level.setCompleted(progressManager.isLevelCompleted(level.getId()));
             }
 
-            // 创建适配器，传入点击监听器
             adapter = new LevelAdapter(levels, new LevelAdapter.OnLevelClickListener() {
                 @Override
                 public void onLevelClick(Level level) {
                     if (level.isLocked()) {
-                        // 未解锁：播报提示
                         speakText("还未解锁哟");
                         Toast.makeText(getContext(), "🔒 还未解锁哟", Toast.LENGTH_SHORT).show();
                     } else {
-                        // 已解锁：进入游戏
                         progressManager.saveCurrentProgress(chapterId, level.getId());
                         MainActivity activity = (MainActivity) getActivity();
                         if (activity != null) {
@@ -111,8 +105,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         return view;
     }
 
-    // ---------- TTS 相关 ----------
-
+    // ---------- TTS ----------
     @Override
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
@@ -120,7 +113,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 tts.setLanguage(Locale.US);
             }
-            // 调慢语速
             tts.setSpeechRate(0.7f);
             tts.setPitch(1.1f);
             isTtsReady = true;
@@ -130,9 +122,10 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
     }
 
+    // 在 LevelFragment 中，修改 speakText 方法：
     private void speakText(String text) {
         if (tts != null && isTtsReady && text != null && !text.isEmpty()) {
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null); // 兼容 API 18
         }
     }
 

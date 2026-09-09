@@ -3,4 +3,22 @@
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1E1E1E" />
+    android:background="#1E1E1E"
+    android:focusableInTouchMode="true"
+    android:clickable="true">
+
+    <FrameLayout
+        android:id="@+id/fragment_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:clickable="true" />
+
+    <TextureView
+        android:id="@+id/video_texture"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+</FrameLayout>
