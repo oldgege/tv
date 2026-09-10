@@ -3,23 +3,21 @@
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1E1E1E"
-    android:focusableInTouchMode="true"
-    android:clickable="true">
+    android:background="#1E1E1E">
 
+    <!-- 移除 focusable，让子视图成为焦点目标 -->
     <FrameLayout
         android:id="@+id/fragment_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:clickable="true" />
+        android:layout_height="match_parent" />
 
-    <!-- VideoView 全屏居中播放 -->
+    <!-- VideoView 不获取焦点 -->
     <VideoView
         android:id="@+id/video_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:focusable="false"
+        android:focusableInTouchMode="false" />
 
 </FrameLayout>

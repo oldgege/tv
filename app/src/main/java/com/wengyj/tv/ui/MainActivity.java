@@ -1,6 +1,5 @@
 package com.wengyj.tv.ui;
 
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,12 +34,8 @@ public class MainActivity extends AppCompatActivity {
         videoView = findViewById(R.id.video_view);
         fragmentContainer = findViewById(R.id.fragment_container);
 
-        fragmentContainer.setFocusable(true);
-        fragmentContainer.setFocusableInTouchMode(true);
-        fragmentContainer.setClickable(true);
-        fragmentContainer.requestFocus();
+        // 不再对 fragmentContainer 调用 requestFocus()
 
-        // 开始播放第一个视频
         playNextVideo();
     }
 
@@ -63,12 +58,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void playNextVideo() {
         if (currentIndex >= videoResources.length) {
-            // 所有视频播完，进入菜单
             finishIntro();
             return;
         }
 
-        // 显示 VideoView，隐藏 fragment
         fragmentContainer.setVisibility(View.GONE);
         videoView.setVisibility(View.VISIBLE);
 
@@ -76,27 +69,22 @@ public class MainActivity extends AppCompatActivity {
         String uriPath = "android.resource://" + getPackageName() + "/" + resId;
         videoView.setVideoURI(Uri.parse(uriPath));
 
-        // 设置缩放模式（尽量居中，但不拉伸）
         videoView.setOnPreparedListener(mp -> {
-            // 设置宽高比适应屏幕，不裁剪
-            mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            mp.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
             videoView.start();
         });
 
         videoView.setOnCompletionListener(mp -> {
-            // 当前播放完成，播放下一个
             currentIndex++;
             playNextVideo();
         });
 
         videoView.setOnErrorListener((mp, what, extra) -> {
-            // 出错则跳过
             currentIndex++;
             playNextVideo();
             return true;
         });
 
-        // 超时保护：如果5秒后没有开始播放，跳过
         handler.postDelayed(() -> {
             if (!videoView.isPlaying()) {
                 currentIndex++;
@@ -106,12 +94,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void finishIntro() {
-        if (fragmentContainer.getVisibility() == View.VISIBLE) return;
         runOnUiThread(() -> {
             videoView.setVisibility(View.GONE);
             videoView.stopPlayback();
             fragmentContainer.setVisibility(View.VISIBLE);
-            fragmentContainer.requestFocus();
             showChapterFragment();
             handler.removeCallbacksAndMessages(null);
         });

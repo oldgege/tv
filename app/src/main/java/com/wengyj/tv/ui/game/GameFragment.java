@@ -1,11 +1,9 @@
 package com.wengyj.tv.ui.game;
 
-import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.media.MediaPlayer;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
@@ -17,8 +15,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-import android.widget.VideoView;
 import android.widget.Toast;
+import android.widget.VideoView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -183,9 +181,12 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             optionsContainer.addView(root);
         }
 
-        if (optionsContainer.getChildCount() > 0) {
-            optionsContainer.getChildAt(0).requestFocus();
-        }
+        // 延迟请求焦点，确保布局完成
+        optionsContainer.post(() -> {
+            if (optionsContainer.getChildCount() > 0) {
+                optionsContainer.getChildAt(0).requestFocus();
+            }
+        });
     }
 
     // ---------- TTS ----------
@@ -266,45 +267,47 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 播放成功视频 ----------
+    // ---------- 成功视频播放 ----------
     private void playSuccessVideo(final Runnable onComplete) {
         videoSuccess.setVisibility(View.VISIBLE);
-        String uri = "android.resource://" + getContext().getPackageName() + "/" + R.raw.success;
-        videoSuccess.setVideoURI(Uri.parse(uri));
+
+        int resId = R.raw.success;
+        String uriPath = "android.resource://" + getContext().getPackageName() + "/" + resId;
+        videoSuccess.setVideoURI(Uri.parse(uriPath));
+
         videoSuccess.setOnPreparedListener(mp -> {
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
             videoSuccess.start();
         });
+
         videoSuccess.setOnCompletionListener(mp -> {
-            videoSuccess.setVisibility(View.GONE);
-            videoSuccess.stopPlayback();
             if (onComplete != null) onComplete.run();
         });
+
         videoSuccess.setOnErrorListener((mp, what, extra) -> {
-            videoSuccess.setVisibility(View.GONE);
-            videoSuccess.stopPlayback();
             if (onComplete != null) onComplete.run();
             return true;
         });
     }
 
-    // ---------- 播放错误视频 ----------
+    // ---------- 失败视频播放 ----------
     private void playErrorVideo(final Runnable onComplete) {
         videoError.setVisibility(View.VISIBLE);
-        String uri = "android.resource://" + getContext().getPackageName() + "/" + R.raw.error;
-        videoError.setVideoURI(Uri.parse(uri));
+
+        int resId = R.raw.error;
+        String uriPath = "android.resource://" + getContext().getPackageName() + "/" + resId;
+        videoError.setVideoURI(Uri.parse(uriPath));
+
         videoError.setOnPreparedListener(mp -> {
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
             videoError.start();
         });
+
         videoError.setOnCompletionListener(mp -> {
-            videoError.setVisibility(View.GONE);
-            videoError.stopPlayback();
             if (onComplete != null) onComplete.run();
         });
+
         videoError.setOnErrorListener((mp, what, extra) -> {
-            videoError.setVisibility(View.GONE);
-            videoError.stopPlayback();
             if (onComplete != null) onComplete.run();
             return true;
         });
@@ -332,6 +335,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
             isAnimating = true;
             playSuccessVideo(() -> {
+                videoSuccess.setVisibility(View.GONE);
+                videoSuccess.stopPlayback();
+
                 int nextId = getNextLevelId();
                 MainActivity activity = (MainActivity) getActivity();
                 if (activity != null) {
@@ -357,6 +363,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
             isAnimating = true;
             playErrorVideo(() -> {
+                videoError.setVisibility(View.GONE);
+                videoError.stopPlayback();
+
+                // 重新播报题目并打乱选项
+                speakText(currentLevel.getQuestion().getPrompt());
                 reshuffleOptions();
                 isAnimating = false;
             });

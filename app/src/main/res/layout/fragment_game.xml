@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="#1E1E1E">
 
-    <!-- 顶部星星 -->
+    <!-- 顶部星星显示 -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -32,7 +32,7 @@
             android:layout_marginStart="4dp" />
     </LinearLayout>
 
-    <!-- 题目和选项 -->
+    <!-- 题目和选项主内容 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -67,21 +67,24 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center" />
-
     </LinearLayout>
 
-    <!-- 成功视频 VideoView -->
+    <!-- 成功视频（VideoView） -->
     <VideoView
         android:id="@+id/video_success"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:focusable="false"
+        android:focusableInTouchMode="false" />
 
-    <!-- 错误视频 VideoView -->
+    <!-- 失败视频（VideoView） -->
     <VideoView
         android:id="@+id/video_error"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:focusable="false"
+        android:focusableInTouchMode="false" />
 
 </FrameLayout>
