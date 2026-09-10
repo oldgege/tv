@@ -103,10 +103,15 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
-        tvHint.setText(q.getHint() != null ? q.getHint() : "");
+
+        if (q.getType() == Question.Type.LISTEN_SELECT) {
+            tvHint.setText("🔊 仔细听，选出正确的字");
+        } else {
+            tvHint.setText(q.getHint() != null ? q.getHint() : "");
+        }
 
         if (isTtsReady) {
-            speakText(q.getPrompt());
+            speakCurrentQuestion();
         }
 
         buildOptions();
@@ -116,7 +121,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     @Override
     public void onResume() {
         super.onResume();
-        // 从视频或上一关返回时，重新聚焦到第一个选项
         if (optionsContainer != null) {
             optionsContainer.post(() -> {
                 if (optionsContainer.getChildCount() > 0) {
@@ -194,7 +198,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             optionsContainer.addView(root);
         }
 
-        // 延迟请求焦点，确保视图完成布局
         optionsContainer.post(() -> {
             if (optionsContainer.getChildCount() > 0) {
                 optionsContainer.getChildAt(0).requestFocus();
@@ -215,11 +218,22 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             isTtsReady = true;
 
             if (currentLevel != null && tvQuestion != null) {
-                speakText(currentLevel.getQuestion().getPrompt());
+                speakCurrentQuestion();
             }
         } else {
             isTtsReady = false;
             Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void speakCurrentQuestion() {
+        if (currentLevel == null) return;
+        Question q = currentLevel.getQuestion();
+        if (q.getType() == Question.Type.LISTEN_SELECT
+                && q.getAudioText() != null && !q.getAudioText().isEmpty()) {
+            speakText(q.getAudioText() + "，" + q.getAudioText());
+        } else {
+            speakText(q.getPrompt());
         }
     }
 
@@ -242,7 +256,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (videoError != null) {
             videoError.stopPlayback();
         }
-        // 清除视频按键监听
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
             activity.clearVideoKeyListener();
@@ -251,7 +264,39 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         super.onDestroy();
     }
 
-    // ---------- 下一关 ----------
+    // ---------- 判断当前关是否为本章最后一关 ----------
+    private boolean isLastLevelOfChapter() {
+        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        for (Chapter chapter : chapters) {
+            List<Level> levels = chapter.getLevels();
+            if (!levels.isEmpty() && levels.get(levels.size() - 1).getId() == levelId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ---------- 获取当前关卡所属章节 ID ----------
+    private int getCurrentChapterId() {
+        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        for (Chapter chapter : chapters) {
+            for (Level level : chapter.getLevels()) {
+                if (level.getId() == levelId) {
+                    return chapter.getId();
+                }
+            }
+        }
+        return -1;
+    }
+
+    // ---------- 动态获取剧情视频资源 ID（不存在返回 0） ----------
+    private int getStoryVideoResId(int chapterId) {
+        if (chapterId <= 0) return 0;
+        String name = "story_chapter_" + chapterId;
+        return getResources().getIdentifier(name, "raw", getContext().getPackageName());
+    }
+
+    // ---------- 获取下一关 ID ----------
     private int getNextLevelId() {
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         Chapter currentChapter = null;
@@ -289,7 +334,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
         final boolean[] completed = {false};
 
-        // 安全的完成回调，防止重复触发
         final Runnable safeComplete = () -> {
             if (completed[0]) return;
             completed[0] = true;
@@ -307,13 +351,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             }
         };
 
-        // 注册按键监听器（按任意键跳过）
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
             activity.setVideoKeyListener(safeComplete::run);
         }
 
-        // 播放视频
         videoView.setVisibility(View.VISIBLE);
         String uriPath = "android.resource://" + getContext().getPackageName() + "/" + rawResId;
         videoView.setVideoURI(Uri.parse(uriPath));
@@ -342,31 +384,46 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
+    // ---------- 答对后：播放成功视频 → 若为章节末关则播放剧情 → 进入下一关/结束 ----------
+    private void onCorrectAnswer() {
+        progressManager.addStar();
+        progressManager.saveCompletedLevel(currentLevel.getId());
+        updateStarsDisplay();
+
+        isAnimating = true;
+        playVideoAndWait(videoSuccess, R.raw.success, () -> {
+            if (isLastLevelOfChapter()) {
+                int chapterId = getCurrentChapterId();
+                int storyResId = getStoryVideoResId(chapterId);
+                if (storyResId != 0) {
+                    playVideoAndWait(videoSuccess, storyResId, this::goToNextLevelOrChapter);
+                    return;
+                }
+            }
+            goToNextLevelOrChapter();
+        });
+    }
+
+    private void goToNextLevelOrChapter() {
+        int nextId = getNextLevelId();
+        MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) {
+            if (nextId != -1) {
+                activity.navigateToGame(nextId);
+            } else {
+                activity.navigateToChapter();
+                speakText("恭喜你完成所有关卡！");
+            }
+        }
+        isAnimating = false;
+    }
+
     // ---------- 答题 ----------
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
         Question q = currentLevel.getQuestion();
         if (selectedIndex == q.getCorrectAnswerIndex()) {
-            // 答对
-            progressManager.addStar();
-            progressManager.saveCompletedLevel(currentLevel.getId());
-            updateStarsDisplay();
-
-            isAnimating = true;
-            playVideoAndWait(videoSuccess, R.raw.success, () -> {
-                int nextId = getNextLevelId();
-                MainActivity activity = (MainActivity) getActivity();
-                if (activity != null) {
-                    if (nextId != -1) {
-                        activity.navigateToGame(nextId);
-                    } else {
-                        activity.navigateToChapter();
-                        speakText("恭喜你完成所有关卡！");
-                    }
-                }
-                isAnimating = false;
-            });
+            onCorrectAnswer();
         } else {
-            // 答错
             progressManager.deductStars(2);
             updateStarsDisplay();
             int remainingStars = progressManager.getStars();
@@ -378,7 +435,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
             isAnimating = true;
             playVideoAndWait(videoError, R.raw.error, () -> {
-                speakText(currentLevel.getQuestion().getPrompt());
+                speakCurrentQuestion();
                 reshuffleOptions();
                 isAnimating = false;
             });

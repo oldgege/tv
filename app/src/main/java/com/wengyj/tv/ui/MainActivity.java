@@ -22,7 +22,8 @@ public class MainActivity extends AppCompatActivity {
     private FrameLayout fragmentContainer;
     private Handler handler = new Handler();
 
-    private int[] videoResources = {R.raw.begin2, R.raw.begin};
+    // 开场视频播放顺序：begin1 → begin2 → begin3
+    private int[] videoResources = {R.raw.begin1, R.raw.begin2, R.raw.begin3};
     private int currentIndex = 0;
 
     // 标记是否处于开场视频阶段
@@ -122,11 +123,13 @@ public class MainActivity extends AppCompatActivity {
         });
 
         videoView.setOnErrorListener((mp, what, extra) -> {
+            // 当前视频加载失败，跳过继续下一个
             currentIndex++;
             playNextVideo();
             return true;
         });
 
+        // 超时保护：如果5秒后仍未开始播放，跳过
         handler.postDelayed(() -> {
             if (!videoView.isPlaying()) {
                 currentIndex++;
@@ -138,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
     // 跳过开场视频，直接进入菜单
     private void skipIntro() {
         isIntroPlaying = false;
-        currentIndex = videoResources.length; // 标记所有视频已跳过
+        currentIndex = videoResources.length;
         finishIntro();
     }
 
