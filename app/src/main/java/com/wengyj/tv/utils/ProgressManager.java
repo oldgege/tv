@@ -13,6 +13,7 @@ public class ProgressManager {
     private static final String KEY_CURRENT_CHAPTER = "current_chapter";
     private static final String KEY_CURRENT_LEVEL = "current_level";
     private static final String KEY_STARS = "stars";
+    private static final String KEY_BGM_ENABLED = "bgm_enabled";
 
     private SharedPreferences prefs;
 
@@ -20,9 +21,18 @@ public class ProgressManager {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
+    // ---------- BGM 开关 ----------
+    public boolean isBgmEnabled() {
+        return prefs.getBoolean(KEY_BGM_ENABLED, true);
+    }
+
+    public void setBgmEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_BGM_ENABLED, enabled).apply();
+    }
+
     // ---------- 星星管理 ----------
     public int getStars() {
-        return prefs.getInt(KEY_STARS, 20); // 初始20颗
+        return prefs.getInt(KEY_STARS, 20);
     }
 
     public void addStar() {

@@ -26,6 +26,7 @@ import com.wengyj.tv.data.datasource.ChapterDataSource;
 import com.wengyj.tv.data.model.Chapter;
 import com.wengyj.tv.data.model.Level;
 import com.wengyj.tv.data.model.Question;
+import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
 import com.wengyj.tv.ui.MainActivity;
 
@@ -260,6 +261,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (activity != null) {
             activity.clearVideoKeyListener();
         }
+        // 恢复 BGM 音量
+        MusicManager.getInstance(getContext()).restoreVolume();
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
@@ -276,7 +279,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return false;
     }
 
-    // ---------- 获取当前关卡所属章节 ID ----------
     private int getCurrentChapterId() {
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         for (Chapter chapter : chapters) {
@@ -289,14 +291,12 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return -1;
     }
 
-    // ---------- 动态获取剧情视频资源 ID（不存在返回 0） ----------
     private int getStoryVideoResId(int chapterId) {
         if (chapterId <= 0) return 0;
         String name = "story_chapter_" + chapterId;
         return getResources().getIdentifier(name, "raw", getContext().getPackageName());
     }
 
-    // ---------- 获取下一关 ID ----------
     private int getNextLevelId() {
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         Chapter currentChapter = null;
@@ -330,7 +330,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 通用视频播放方法（支持按键跳过） ----------
+    // ---------- 通用视频播放方法（支持按键跳过，播放期间降低 BGM 音量） ----------
     private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
         final boolean[] completed = {false};
 
@@ -346,6 +346,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             videoView.stopPlayback();
             videoView.setVisibility(View.GONE);
 
+            // 恢复 BGM 音量
+            MusicManager.getInstance(getContext()).restoreVolume();
+
             if (onComplete != null) {
                 onComplete.run();
             }
@@ -355,6 +358,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (activity != null) {
             activity.setVideoKeyListener(safeComplete::run);
         }
+
+        // 视频播放时降低 BGM 音量
+        MusicManager.getInstance(getContext()).lowerVolume();
 
         videoView.setVisibility(View.VISIBLE);
         String uriPath = "android.resource://" + getContext().getPackageName() + "/" + rawResId;
@@ -375,13 +381,10 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     // ---------- 星星耗尽：播放 game_over 视频后重置并返回菜单 ----------
     private void resetAllProgressAndGoHome() {
-        // 检查 game_over.mp4 是否存在
         int resId = getResources().getIdentifier("game_over", "raw", getContext().getPackageName());
         if (resId != 0) {
-            // 播放 game_over 视频
             playVideoAndWait(videoError, resId, this::doReset);
         } else {
-            // 没有 game_over 视频，直接重置
             doReset();
         }
     }
@@ -396,7 +399,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 答对后：播放成功视频 → 若为章节末关则播放剧情 → 进入下一关/结束 ----------
+    // ---------- 答对后 ----------
     private void onCorrectAnswer() {
         progressManager.addStar();
         progressManager.saveCompletedLevel(currentLevel.getId());
