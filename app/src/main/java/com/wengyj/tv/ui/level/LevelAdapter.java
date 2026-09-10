@@ -1,8 +1,10 @@
 package com.wengyj.tv.ui.level;
 
+import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -17,6 +19,10 @@ import java.util.List;
 public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> {
     private List<Level> levels;
     private OnLevelClickListener listener;
+
+    // 默认背景色 & 焦点背景色（亮蓝色）
+    private static final int COLOR_NORMAL = Color.parseColor("#444444");
+    private static final int COLOR_FOCUSED = Color.parseColor("#03A9F4");
 
     public interface OnLevelClickListener {
         void onLevelClick(Level level);
@@ -39,14 +45,13 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Level level = levels.get(position);
         holder.tvLevelTitle.setText(level.getTitle());
+
         if (level.isLocked()) {
             holder.ivLock.setVisibility(View.VISIBLE);
             holder.ivStar.setVisibility(View.GONE);
-            holder.card.setEnabled(false);
             holder.card.setAlpha(0.5f);
         } else {
             holder.ivLock.setVisibility(View.GONE);
-            holder.card.setEnabled(true);
             holder.card.setAlpha(1.0f);
             if (level.isCompleted()) {
                 holder.ivStar.setVisibility(View.VISIBLE);
@@ -54,6 +59,32 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
                 holder.ivStar.setVisibility(View.GONE);
             }
         }
+
+        // 重置为默认背景色（防止复用错乱）
+        holder.card.setCardBackgroundColor(COLOR_NORMAL);
+
+        // 焦点变化：放大 + 高亮背景 + 阴影提升
+        holder.card.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                v.animate()
+                        .scaleX(1.15f)
+                        .scaleY(1.15f)
+                        .setDuration(200)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .start();
+                holder.card.setCardElevation(16f);
+                holder.card.setCardBackgroundColor(COLOR_FOCUSED);  // 高亮
+            } else {
+                v.animate()
+                        .scaleX(1.0f)
+                        .scaleY(1.0f)
+                        .setDuration(200)
+                        .setInterpolator(new AccelerateDecelerateInterpolator())
+                        .start();
+                holder.card.setCardElevation(4f);
+                holder.card.setCardBackgroundColor(COLOR_NORMAL);   // 恢复
+            }
+        });
 
         holder.card.setOnClickListener(v -> {
             if (listener != null) {

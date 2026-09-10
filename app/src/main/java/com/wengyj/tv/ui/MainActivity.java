@@ -25,7 +25,10 @@ public class MainActivity extends AppCompatActivity {
     private int[] videoResources = {R.raw.begin2, R.raw.begin};
     private int currentIndex = 0;
 
-    // ---------- 视频按键监听器 ----------
+    // 标记是否处于开场视频阶段
+    private boolean isIntroPlaying = false;
+
+    // ---------- 视频按键监听器（游戏内使用） ----------
     private OnVideoKeyListener videoKeyListener;
 
     public interface OnVideoKeyListener {
@@ -42,10 +45,21 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 游戏视频播放时，拦截任意按键（返回键除外）跳过视频
-        if (videoKeyListener != null && event.getAction() == KeyEvent.ACTION_DOWN) {
-            if (event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            // 返回键不拦截
+            if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+                return super.dispatchKeyEvent(event);
+            }
+
+            // 游戏内视频播放阶段：拦截任意按键跳过
+            if (videoKeyListener != null) {
                 videoKeyListener.onAnyKeyPressed();
+                return true;
+            }
+
+            // 开场视频阶段：拦截任意按键直接进入菜单
+            if (isIntroPlaying) {
+                skipIntro();
                 return true;
             }
         }
@@ -89,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        isIntroPlaying = true;
         fragmentContainer.setVisibility(View.GONE);
         videoView.setVisibility(View.VISIBLE);
 
@@ -120,7 +135,15 @@ public class MainActivity extends AppCompatActivity {
         }, 5000);
     }
 
+    // 跳过开场视频，直接进入菜单
+    private void skipIntro() {
+        isIntroPlaying = false;
+        currentIndex = videoResources.length; // 标记所有视频已跳过
+        finishIntro();
+    }
+
     private void finishIntro() {
+        isIntroPlaying = false;
         runOnUiThread(() -> {
             videoView.setVisibility(View.GONE);
             videoView.stopPlayback();

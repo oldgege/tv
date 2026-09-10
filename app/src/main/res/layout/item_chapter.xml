@@ -1,45 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/card_chapter"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:focusable="true"
-    android:clickable="true"
-    android:foreground="?android:attr/selectableItemBackground"
-    app:cardElevation="8dp"
-    app:cardCornerRadius="12dp"
-    android:layout_margin="8dp"
-    app:cardBackgroundColor="#333333">
+    android:padding="12dp"
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
-    <LinearLayout
+    <androidx.cardview.widget.CardView
+        android:id="@+id/card_chapter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:gravity="center">
+        android:focusable="true"
+        android:clickable="true"
+        app:cardElevation="6dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="#333333">
 
-        <ImageView
-            android:id="@+id/iv_chapter_icon"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:src="@drawable/ic_chapter_placeholder" />
-
-        <TextView
-            android:id="@+id/tv_chapter_title"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/chapter_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="章节名"
-            android:textSize="22sp"
-            android:textColor="#FFFFFF"
-            android:layout_marginTop="8dp" />
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:gravity="center"
+            android:background="@android:color/transparent">
 
-        <TextView
-            android:id="@+id/tv_chapter_subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="副标题"
-            android:textSize="14sp"
-            android:textColor="#AAAAAA" />
-    </LinearLayout>
-</androidx.cardview.widget.CardView>
+            <ImageView
+                android:id="@+id/iv_chapter_icon"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_chapter_placeholder" />
+
+            <TextView
+                android:id="@+id/tv_chapter_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="章节名"
+                android:textSize="22sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/tv_chapter_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="副标题"
+                android:textSize="14sp"
+                android:textColor="#EEEEEE" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+</FrameLayout>
