@@ -373,8 +373,20 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         });
     }
 
-    // ---------- 重置所有进度并返回菜单 ----------
+    // ---------- 星星耗尽：播放 game_over 视频后重置并返回菜单 ----------
     private void resetAllProgressAndGoHome() {
+        // 检查 game_over.mp4 是否存在
+        int resId = getResources().getIdentifier("game_over", "raw", getContext().getPackageName());
+        if (resId != 0) {
+            // 播放 game_over 视频
+            playVideoAndWait(videoError, resId, this::doReset);
+        } else {
+            // 没有 game_over 视频，直接重置
+            doReset();
+        }
+    }
+
+    private void doReset() {
         progressManager.resetAllProgress();
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
@@ -429,6 +441,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             int remainingStars = progressManager.getStars();
 
             if (remainingStars <= 0) {
+                isAnimating = true;
                 resetAllProgressAndGoHome();
                 return;
             }
