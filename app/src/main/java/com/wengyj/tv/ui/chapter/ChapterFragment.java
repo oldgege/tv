@@ -4,18 +4,16 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
-import com.wengyj.tv.R;
-import com.wengyj.tv.data.datasource.ChapterDataSource;
-import com.wengyj.tv.data.model.Chapter;
-import com.wengyj.tv.ui.MainActivity;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.wengyj.tv.R;
+import com.wengyj.tv.data.datasource.ChapterDataSource;
+import com.wengyj.tv.data.model.Chapter;
+import com.wengyj.tv.ui.MainActivity;
 
 import java.util.List;
 
@@ -32,6 +30,10 @@ public class ChapterFragment extends Fragment {
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 3));
         recyclerView.setHasFixedSize(true);
 
+        // 支持遥控器焦点
+        recyclerView.setFocusable(true);
+        recyclerView.setFocusableInTouchMode(true);
+
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         adapter = new ChapterAdapter(chapters, chapter -> {
             MainActivity activity = (MainActivity) getActivity();
@@ -40,6 +42,10 @@ public class ChapterFragment extends Fragment {
             }
         });
         recyclerView.setAdapter(adapter);
+
+        // 请求焦点，确保遥控器可以操作
+        recyclerView.post(() -> recyclerView.requestFocus());
+
         return view;
     }
 }

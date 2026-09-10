@@ -4,6 +4,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.VideoView;
@@ -24,6 +25,34 @@ public class MainActivity extends AppCompatActivity {
     private int[] videoResources = {R.raw.begin2, R.raw.begin};
     private int currentIndex = 0;
 
+    // ---------- 视频按键监听器 ----------
+    private OnVideoKeyListener videoKeyListener;
+
+    public interface OnVideoKeyListener {
+        void onAnyKeyPressed();
+    }
+
+    public void setVideoKeyListener(OnVideoKeyListener listener) {
+        this.videoKeyListener = listener;
+    }
+
+    public void clearVideoKeyListener() {
+        this.videoKeyListener = null;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // 游戏视频播放时，拦截任意按键（返回键除外）跳过视频
+        if (videoKeyListener != null && event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+                videoKeyListener.onAnyKeyPressed();
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+    // ---------------------------------
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -33,8 +62,6 @@ public class MainActivity extends AppCompatActivity {
         fragmentManager = getSupportFragmentManager();
         videoView = findViewById(R.id.video_view);
         fragmentContainer = findViewById(R.id.fragment_container);
-
-        // 不再对 fragmentContainer 调用 requestFocus()
 
         playNextVideo();
     }

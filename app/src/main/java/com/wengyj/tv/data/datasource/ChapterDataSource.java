@@ -27,6 +27,7 @@ public class ChapterDataSource {
         return chapters;
     }
 
+    // 通用方法：创建选择题并随机打乱选项顺序
     private static Question createChoiceQuestion(String prompt, String correctAnswer, String[] wrongAnswers, String hint) {
         List<String> options = new ArrayList<>();
         options.add(correctAnswer);
@@ -36,219 +37,261 @@ public class ChapterDataSource {
         return new Question(Question.Type.CHOICE, prompt, options, correctIndex, hint, null);
     }
 
-    private static List<String> generateWrongPinyin(String correct, String[] allPinyin, int excludeIndex) {
-        List<String> wrong = new ArrayList<>();
-        int count = 0;
-        for (int i = 0; i < allPinyin.length && count < 3; i++) {
-            if (i != excludeIndex && !allPinyin[i].equals(correct)) {
-                wrong.add(allPinyin[i]);
-                count++;
-            }
+    // 通用方法：从数据数组生成章节
+    private static Chapter createChapterFromData(int chapterId, String title, String subtitle, String[][] data) {
+        List<Level> levels = new ArrayList<>();
+        for (int i = 0; i < data.length; i++) {
+            String[] row = data[i];
+            // 格式：{类型, 题目, 正确答案, 错误1, 错误2, 错误3}
+            Question q = createChoiceQuestion(row[1], row[2], new String[]{row[3], row[4], row[5]}, "");
+            int uniqueId = chapterId * 100 + (i + 1);
+            Level level = new Level(uniqueId, chapterId, "第" + (i + 1) + "关", q, i != 0, false, 0);
+            levels.add(level);
         }
-        while (wrong.size() < 3) {
-            wrong.add("pinyin" + (wrong.size() + 1));
-        }
-        return wrong;
+        levels.get(0).setLocked(false);
+        return new Chapter(chapterId, title, subtitle, R.drawable.ic_chapter_placeholder, data.length, levels);
     }
 
     // ========== 第1章：我上学了 ==========
     private static Chapter createChapter1() {
-        List<Level> levels = new ArrayList<>();
-        String[] words = {"我", "国", "中", "学", "小", "生", "爱", "语", "文",
-                "天", "地", "人", "你", "好", "老", "师", "同", "学", "们", "家"};
-        String[] pinyin = {"wǒ", "guó", "zhōng", "xué", "xiǎo", "shēng", "ài", "yǔ", "wén",
-                "tiān", "dì", "rén", "nǐ", "hǎo", "lǎo", "shī", "tóng", "xué", "men", "jiā"};
-        for (int i = 0; i < 20; i++) {
-            String word = words[i];
-            String correct = pinyin[i];
-            List<String> wrongs = generateWrongPinyin(correct, pinyin, i);
-            String prompt = "请选择 \"" + word + "\" 的正确读音：";
-            Question q = createChoiceQuestion(prompt, correct, wrongs.toArray(new String[0]), "想一想这个字怎么读");
-            int uniqueId = 1 * 100 + (i + 1); // 全局唯一ID
-            Level level = new Level(uniqueId, 1, "第" + (i + 1) + "关：认识" + word, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(1, "我上学了", "认识学校和生活", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "请选择\"我\"的正确读音：", "wǒ", "wō", "wò", "wó"},
+                {"数学", "1 + 1 = ?", "2", "1", "3", "4"},
+                {"语文", "请选择\"国\"的正确读音：", "guó", "guō", "guǒ", "guò"},
+                {"数学", "2 + 1 = ?", "3", "2", "4", "5"},
+                {"语文", "请选择\"中\"的正确读音：", "zhōng", "zōng", "zhòng", "zòng"},
+                {"数学", "3 + 1 = ?", "4", "3", "5", "6"},
+                {"语文", "请选择\"学\"的正确读音：", "xué", "xuě", "xuè", "xūe"},
+                {"数学", "4 + 1 = ?", "5", "4", "6", "7"},
+                {"语文", "请选择\"小\"的正确读音：", "xiǎo", "xiào", "xiāo", "xiǎ"},
+                {"数学", "5 + 1 = ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"生\"的正确读音：", "shēng", "shéng", "shěng", "shèng"},
+                {"数学", "1 + 2 = ?", "3", "2", "4", "5"},
+                {"语文", "请选择\"爱\"的正确读音：", "ài", "ái", "ǎi", "āi"},
+                {"数学", "2 + 2 = ?", "4", "3", "5", "6"},
+                {"语文", "请选择\"语\"的正确读音：", "yǔ", "yú", "yù", "yū"},
+                {"数学", "3 + 2 = ?", "5", "4", "6", "7"},
+                {"语文", "请选择\"文\"的正确读音：", "wén", "wěn", "wèn", "wēng"},
+                {"数学", "4 + 2 = ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"天\"的正确读音：", "tiān", "tián", "tiǎn", "tiàn"},
+                {"数学", "5 + 2 = ?", "7", "6", "8", "9"}
+        };
+        return createChapterFromData(1, "我上学了", "拼音 + 10以内加法", data);
     }
 
     // ========== 第2章：识字（一） ==========
     private static Chapter createChapter2() {
-        List<Level> levels = new ArrayList<>();
-        String[] words = {"天", "地", "人", "金", "木", "水", "火", "土", "口", "耳",
-                "目", "手", "足", "日", "月", "山", "川", "上", "下", "大"};
-        String[] pinyin = {"tiān", "dì", "rén", "jīn", "mù", "shuǐ", "huǒ", "tǔ", "kǒu", "ěr",
-                "mù", "shǒu", "zú", "rì", "yuè", "shān", "chuān", "shàng", "xià", "dà"};
-        for (int i = 0; i < 20; i++) {
-            String word = words[i];
-            String correct = pinyin[i];
-            List<String> wrongs = generateWrongPinyin(correct, pinyin, i);
-            String prompt = "请选择 \"" + word + "\" 的正确读音：";
-            Question q = createChoiceQuestion(prompt, correct, wrongs.toArray(new String[0]), "想想这个字的拼音");
-            int uniqueId = 2 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 2, "第" + (i + 1) + "关：认识" + word, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(2, "识字（一）", "天地人，金木水火土", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "请选择\"地\"的正确读音：", "dì", "dí", "dǐ", "dī"},
+                {"数学", "1 + 1 = ?", "2", "0", "3", "4"},
+                {"语文", "请选择\"人\"的正确读音：", "rén", "rěn", "rèn", "réng"},
+                {"数学", "2 + 2 = ?", "4", "3", "5", "6"},
+                {"语文", "请选择\"金\"的正确读音：", "jīn", "jǐn", "jìn", "jīng"},
+                {"数学", "3 + 3 = ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"木\"的正确读音：", "mù", "mú", "mǔ", "mǜ"},
+                {"数学", "4 + 4 = ?", "8", "7", "9", "6"},
+                {"语文", "请选择\"水\"的正确读音：", "shuǐ", "shuí", "shuì", "shuī"},
+                {"数学", "5 + 5 = ?", "10", "9", "8", "11"},
+                {"语文", "请选择\"火\"的正确读音：", "huǒ", "huó", "huò", "huō"},
+                {"数学", "6 + 1 = ?", "7", "6", "8", "5"},
+                {"语文", "请选择\"土\"的正确读音：", "tǔ", "tú", "tù", "tū"},
+                {"数学", "7 + 1 = ?", "8", "7", "9", "6"},
+                {"语文", "请选择\"口\"的正确读音：", "kǒu", "kòu", "kōu", "kǒng"},
+                {"数学", "8 + 1 = ?", "9", "8", "10", "7"},
+                {"语文", "请选择\"耳\"的正确读音：", "ěr", "ér", "èr", "ēr"},
+                {"数学", "9 + 1 = ?", "10", "9", "11", "8"},
+                {"语文", "请选择\"目\"的正确读音：", "mù", "mú", "mǔ", "mǜ"},
+                {"数学", "10 + 1 = ?", "11", "10", "12", "9"}
+        };
+        return createChapterFromData(2, "识字（一）", "识字 + 10以内加法", data);
     }
 
     // ========== 第3章：汉语拼音（一） ==========
     private static Chapter createChapter3() {
-        List<Level> levels = new ArrayList<>();
-        String[] letters = {"a", "o", "e", "i", "u", "ü", "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h", "j", "q", "x"};
-        String[] names = {"啊", "哦", "鹅", "衣", "乌", "迂", "播", "泼", "摸", "佛", "得", "特", "讷", "勒", "哥", "科", "喝", "鸡", "欺", "希"};
-        for (int i = 0; i < 20; i++) {
-            String letter = letters[i];
-            String name = names[i];
-            String prompt = "请选择字母 \"" + letter + "\" 的正确读音：";
-            List<String> wrongs = new ArrayList<>();
-            for (int j = 0; j < names.length; j++) {
-                if (j != i && wrongs.size() < 3) {
-                    wrongs.add(names[j]);
-                }
-            }
-            while (wrongs.size() < 3) wrongs.add("读音" + (wrongs.size() + 1));
-            Question q = createChoiceQuestion(prompt, name, wrongs.toArray(new String[0]), "回忆字母的发音");
-            int uniqueId = 3 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 3, "第" + (i + 1) + "关：学习" + letter, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(3, "汉语拼音（一）", "a o e i u ü", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "字母\"a\"的读音是？", "啊", "哦", "鹅", "衣"},
+                {"数学", "5 - 1 = ?", "4", "3", "5", "6"},
+                {"语文", "字母\"o\"的读音是？", "哦", "啊", "鹅", "衣"},
+                {"数学", "5 - 2 = ?", "3", "2", "4", "5"},
+                {"语文", "字母\"e\"的读音是？", "鹅", "啊", "哦", "衣"},
+                {"数学", "5 - 3 = ?", "2", "1", "3", "4"},
+                {"语文", "字母\"i\"的读音是？", "衣", "乌", "迂", "啊"},
+                {"数学", "5 - 4 = ?", "1", "0", "2", "3"},
+                {"语文", "字母\"u\"的读音是？", "乌", "衣", "迂", "哦"},
+                {"数学", "6 - 1 = ?", "5", "4", "6", "7"},
+                {"语文", "字母\"ü\"的读音是？", "迂", "衣", "乌", "鹅"},
+                {"数学", "6 - 2 = ?", "4", "3", "5", "6"},
+                {"语文", "字母\"b\"的读音是？", "播", "泼", "摸", "佛"},
+                {"数学", "6 - 3 = ?", "3", "2", "4", "5"},
+                {"语文", "字母\"p\"的读音是？", "泼", "播", "摸", "佛"},
+                {"数学", "7 - 1 = ?", "6", "5", "7", "8"},
+                {"语文", "字母\"m\"的读音是？", "摸", "播", "泼", "佛"},
+                {"数学", "7 - 2 = ?", "5", "4", "6", "7"},
+                {"语文", "字母\"f\"的读音是？", "佛", "播", "泼", "摸"},
+                {"数学", "7 - 3 = ?", "4", "3", "5", "6"}
+        };
+        return createChapterFromData(3, "汉语拼音（一）", "拼音 + 10以内减法", data);
     }
 
     // ========== 第4章：汉语拼音（二） ==========
     private static Chapter createChapter4() {
-        List<Level> levels = new ArrayList<>();
-        String[] initials = {"zh", "ch", "sh", "r", "z", "c", "s", "y", "w", "ai", "ei", "ui", "ao", "ou", "iu", "ie", "üe", "er", "an", "en"};
-        String[] examples = {"知", "吃", "诗", "日", "资", "此", "思", "衣", "乌", "爱", "诶", "威", "奥", "欧", "优", "也", "约", "儿", "安", "恩"};
-        for (int i = 0; i < 20; i++) {
-            String init = initials[i];
-            String ex = examples[i];
-            String prompt = "请选择拼音 \"" + init + "\" 对应的汉字（示例）：";
-            List<String> wrongs = new ArrayList<>();
-            for (int j = 0; j < examples.length; j++) {
-                if (j != i && wrongs.size() < 3) {
-                    wrongs.add(examples[j]);
-                }
-            }
-            while (wrongs.size() < 3) wrongs.add("字" + (wrongs.size() + 1));
-            Question q = createChoiceQuestion(prompt, ex, wrongs.toArray(new String[0]), "想想这个拼音读什么");
-            int uniqueId = 4 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 4, "第" + (i + 1) + "关：拼音" + init, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(4, "汉语拼音（二）", "zh ch sh r z c s", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "字母\"d\"的读音是？", "得", "特", "讷", "勒"},
+                {"数学", "8 - 1 = ?", "7", "6", "8", "9"},
+                {"语文", "字母\"t\"的读音是？", "特", "得", "讷", "勒"},
+                {"数学", "8 - 2 = ?", "6", "5", "7", "8"},
+                {"语文", "字母\"n\"的读音是？", "讷", "得", "特", "勒"},
+                {"数学", "8 - 3 = ?", "5", "4", "6", "7"},
+                {"语文", "字母\"l\"的读音是？", "勒", "得", "特", "讷"},
+                {"数学", "8 - 4 = ?", "4", "3", "5", "6"},
+                {"语文", "字母\"g\"的读音是？", "哥", "科", "喝", "鸡"},
+                {"数学", "9 - 1 = ?", "8", "7", "9", "10"},
+                {"语文", "字母\"k\"的读音是？", "科", "哥", "喝", "鸡"},
+                {"数学", "9 - 2 = ?", "7", "6", "8", "9"},
+                {"语文", "字母\"h\"的读音是？", "喝", "哥", "科", "鸡"},
+                {"数学", "9 - 3 = ?", "6", "5", "7", "8"},
+                {"语文", "字母\"j\"的读音是？", "鸡", "欺", "希", "知"},
+                {"数学", "9 - 4 = ?", "5", "4", "6", "7"},
+                {"语文", "字母\"q\"的读音是？", "欺", "鸡", "希", "知"},
+                {"数学", "10 - 1 = ?", "9", "8", "10", "11"},
+                {"语文", "字母\"x\"的读音是？", "希", "鸡", "欺", "知"},
+                {"数学", "10 - 2 = ?", "8", "7", "9", "10"}
+        };
+        return createChapterFromData(4, "汉语拼音（二）", "拼音 + 10以内减法", data);
     }
 
     // ========== 第5章：汉语拼音（三） ==========
     private static Chapter createChapter5() {
-        List<Level> levels = new ArrayList<>();
-        String[] finals = {"ang", "eng", "ing", "ong", "ia", "ua", "uo", "üe", "ian", "iang", "iong", "uang", "uai", "uan", "üan", "uen", "ün", "uang", "ueng", "ong"};
-        String[] examples = {"昂", "亨", "英", "轰", "呀", "娃", "窝", "月", "烟", "央", "雍", "汪", "歪", "弯", "圆", "温", "晕", "汪", "翁", "轰"};
-        for (int i = 0; i < 20; i++) {
-            String fin = finals[i];
-            String ex = examples[i];
-            String prompt = "请选择拼音 \"" + fin + "\" 对应的汉字（示例）：";
-            List<String> wrongs = new ArrayList<>();
-            for (int j = 0; j < examples.length; j++) {
-                if (j != i && wrongs.size() < 3) {
-                    wrongs.add(examples[j]);
-                }
-            }
-            while (wrongs.size() < 3) wrongs.add("字" + (wrongs.size() + 1));
-            Question q = createChoiceQuestion(prompt, ex, wrongs.toArray(new String[0]), "注意韵母的发音");
-            int uniqueId = 5 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 5, "第" + (i + 1) + "关：韵母" + fin, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(5, "汉语拼音（三）", "ang eng ing ong", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "声母\"zh\"的读音是？", "知", "吃", "诗", "日"},
+                {"数学", "3 + 4 = ?", "7", "6", "8", "9"},
+                {"语文", "声母\"ch\"的读音是？", "吃", "知", "诗", "日"},
+                {"数学", "6 + 3 = ?", "9", "8", "10", "7"},
+                {"语文", "声母\"sh\"的读音是？", "诗", "知", "吃", "日"},
+                {"数学", "8 + 2 = ?", "10", "9", "11", "8"},
+                {"语文", "声母\"r\"的读音是？", "日", "知", "吃", "诗"},
+                {"数学", "7 + 2 = ?", "9", "8", "10", "7"},
+                {"语文", "声母\"z\"的读音是？", "资", "疵", "思", "知"},
+                {"数学", "4 + 5 = ?", "9", "8", "10", "7"},
+                {"语文", "声母\"c\"的读音是？", "疵", "资", "思", "知"},
+                {"数学", "5 + 4 = ?", "9", "8", "10", "7"},
+                {"语文", "声母\"s\"的读音是？", "思", "资", "疵", "知"},
+                {"数学", "6 + 4 = ?", "10", "9", "11", "8"},
+                {"语文", "声母\"y\"的读音是？", "衣", "乌", "迂", "啊"},
+                {"数学", "7 + 3 = ?", "10", "9", "11", "8"},
+                {"语文", "声母\"w\"的读音是？", "乌", "衣", "迂", "哦"},
+                {"数学", "5 + 3 = ?", "8", "7", "9", "6"},
+                {"语文", "请选择\"ai\"的读音：", "挨", "诶", "威", "奥"},
+                {"数学", "6 + 4 = ?", "10", "9", "11", "8"}
+        };
+        return createChapterFromData(5, "汉语拼音（三）", "拼音 + 20以内加法", data);
     }
 
     // ========== 第6章：课文（一） ==========
     private static Chapter createChapter6() {
-        List<Level> levels = new ArrayList<>();
-        String[] words = {"秋", "天", "气", "了", "树", "叶", "片", "大", "飞", "落",
-                "江", "南", "可", "采", "莲", "鱼", "戏", "东", "西", "北"};
-        String[] pinyin = {"qiū", "tiān", "qì", "le", "shù", "yè", "piàn", "dà", "fēi", "luò",
-                "jiāng", "nán", "kě", "cǎi", "lián", "yú", "xì", "dōng", "xī", "běi"};
-        for (int i = 0; i < 20; i++) {
-            String word = words[i];
-            String correct = pinyin[i];
-            List<String> wrongs = generateWrongPinyin(correct, pinyin, i);
-            String prompt = "请选择 \"" + word + "\" 的正确读音：";
-            Question q = createChoiceQuestion(prompt, correct, wrongs.toArray(new String[0]), "回忆课文中的字");
-            int uniqueId = 6 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 6, "第" + (i + 1) + "关：课文生字" + word, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(6, "课文（一）", "秋天·江南·雪地·四季", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "请选择\"秋\"的正确读音：", "qiū", "qiú", "qiǔ", "qiù"},
+                {"数学", "小明有3个苹果，又买了2个，一共几个？", "5", "4", "6", "7"},
+                {"语文", "请选择\"天\"的正确读音：", "tiān", "tián", "tiǎn", "tiàn"},
+                {"数学", "小明有4颗糖，吃掉了1颗，还剩几颗？", "3", "2", "4", "5"},
+                {"语文", "请选择\"气\"的正确读音：", "qì", "qí", "qǐ", "qī"},
+                {"数学", "树上有5只鸟，飞走了2只，还剩几只？", "3", "2", "4", "5"},
+                {"语文", "请选择\"树\"的正确读音：", "shù", "shǔ", "shū", "shú"},
+                {"数学", "盒子里有6支笔，又放进去3支，一共几支？", "9", "8", "10", "7"},
+                {"语文", "请选择\"叶\"的正确读音：", "yè", "yé", "yě", "yē"},
+                {"数学", "妈妈买了8个橘子，给了弟弟3个，还剩几个？", "5", "4", "6", "7"},
+                {"语文", "请选择\"片\"的正确读音：", "piàn", "pián", "piǎn", "piān"},
+                {"数学", "小红有2本书，妈妈又给她买了4本，一共几本？", "6", "5", "7", "8"},
+                {"语文", "请选择\"飞\"的正确读音：", "fēi", "féi", "fěi", "fèi"},
+                {"数学", "草地上有7朵花，摘走了2朵，还剩几朵？", "5", "4", "6", "7"},
+                {"语文", "请选择\"落\"的正确读音：", "luò", "luó", "luǒ", "luō"},
+                {"数学", "车上有9个人，下车了4个，还剩几个？", "5", "4", "6", "7"},
+                {"语文", "请选择\"江\"的正确读音：", "jiāng", "jiáng", "jiǎng", "jiàng"},
+                {"数学", "盘子里有5个包子，吃了2个，还剩几个？", "3", "2", "4", "5"},
+                {"语文", "请选择\"南\"的正确读音：", "nán", "nàn", "nǎn", "nān"},
+                {"数学", "小明做了6道题，又做了3道，一共做了几道？", "9", "8", "10", "7"}
+        };
+        return createChapterFromData(6, "课文（一）", "识字 + 数学应用题", data);
     }
 
     // ========== 第7章：识字（二） ==========
     private static Chapter createChapter7() {
-        List<Level> levels = new ArrayList<>();
-        String[] words = {"对", "韵", "歌", "日", "月", "明", "小", "书", "包", "升",
-                "国", "旗", "红", "星", "歌", "曲", "敬", "礼", "立", "正"};
-        String[] pinyin = {"duì", "yùn", "gē", "rì", "yuè", "míng", "xiǎo", "shū", "bāo", "shēng",
-                "guó", "qí", "hóng", "xīng", "gē", "qǔ", "jìng", "lǐ", "lì", "zhèng"};
-        for (int i = 0; i < 20; i++) {
-            String word = words[i];
-            String correct = pinyin[i];
-            List<String> wrongs = generateWrongPinyin(correct, pinyin, i);
-            String prompt = "请选择 \"" + word + "\" 的正确读音：";
-            Question q = createChoiceQuestion(prompt, correct, wrongs.toArray(new String[0]), "想想这个字的拼音");
-            int uniqueId = 7 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 7, "第" + (i + 1) + "关：识字" + word, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(7, "识字（二）", "对韵歌·日月明·小书包·升国旗", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "请选择\"对\"的正确读音：", "duì", "duí", "duǐ", "duī"},
+                {"数学", "找规律：1, 2, 3, 4, ?", "5", "6", "7", "8"},
+                {"语文", "请选择\"韵\"的正确读音：", "yùn", "yún", "yǔn", "yūn"},
+                {"数学", "找规律：2, 4, 6, 8, ?", "10", "9", "11", "12"},
+                {"语文", "请选择\"歌\"的正确读音：", "gē", "gé", "gě", "gè"},
+                {"数学", "找规律：10, 9, 8, 7, ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"日\"的正确读音：", "rì", "rí", "rǐ", "rī"},
+                {"数学", "找规律：1, 3, 5, 7, ?", "9", "8", "10", "11"},
+                {"语文", "请选择\"月\"的正确读音：", "yuè", "yué", "yuě", "yuē"},
+                {"数学", "哪个数字比5大？", "7", "4", "3", "2"},
+                {"语文", "请选择\"明\"的正确读音：", "míng", "mǐng", "mìng", "mīng"},
+                {"数学", "哪个数字比8小？", "6", "9", "10", "11"},
+                {"语文", "请选择\"书\"的正确读音：", "shū", "shú", "shǔ", "shù"},
+                {"数学", "哪个数字最大？", "9", "5", "7", "3"},
+                {"语文", "请选择\"包\"的正确读音：", "bāo", "báo", "bǎo", "bào"},
+                {"数学", "哪个数字最小？", "2", "5", "7", "9"},
+                {"语文", "请选择\"升\"的正确读音：", "shēng", "shéng", "shěng", "shèng"},
+                {"数学", "10 和 6 哪个大？", "10", "6", "一样大", "都不是"},
+                {"语文", "请选择\"国\"的正确读音：", "guó", "guō", "guǒ", "guò"},
+                {"数学", "3 和 8 哪个小？", "3", "8", "一样大", "都不是"}
+        };
+        return createChapterFromData(7, "识字（二）", "识字 + 找规律比大小", data);
     }
 
     // ========== 第8章：课文（二） ==========
     private static Chapter createChapter8() {
-        List<Level> levels = new ArrayList<>();
-        String[] words = {"小", "小", "的", "船", "两", "头", "尖", "我", "坐", "在",
-                "影", "子", "前", "后", "左", "右", "黑", "狗", "朋", "友"};
-        String[] pinyin = {"xiǎo", "xiǎo", "de", "chuán", "liǎng", "tóu", "jiān", "wǒ", "zuò", "zài",
-                "yǐng", "zi", "qián", "hòu", "zuǒ", "yòu", "hēi", "gǒu", "péng", "yǒu"};
-        for (int i = 0; i < 20; i++) {
-            String word = words[i];
-            String correct = pinyin[i];
-            List<String> wrongs = generateWrongPinyin(correct, pinyin, i);
-            String prompt = "请选择 \"" + word + "\" 的正确读音：";
-            Question q = createChoiceQuestion(prompt, correct, wrongs.toArray(new String[0]), "回忆课文中的字");
-            int uniqueId = 8 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 8, "第" + (i + 1) + "关：课文生字" + word, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(8, "课文（二）", "小小的船·影子·两件宝", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "请选择\"影\"的正确读音：", "yǐng", "yíng", "yìng", "yīng"},
+                {"数学", "哪个是圆形？", "○", "□", "△", "☆"},
+                {"语文", "请选择\"子\"的正确读音：", "zi", "zǐ", "zì", "zī"},
+                {"数学", "哪个是三角形？", "△", "○", "□", "☆"},
+                {"语文", "请选择\"前\"的正确读音：", "qián", "qiǎn", "qiān", "qiàn"},
+                {"数学", "哪个是正方形？", "□", "○", "△", "☆"},
+                {"语文", "请选择\"后\"的正确读音：", "hòu", "hóu", "hǒu", "hōu"},
+                {"数学", "一个正方形有几条边？", "4", "3", "5", "6"},
+                {"语文", "请选择\"左\"的正确读音：", "zuǒ", "zuó", "zuò", "zuō"},
+                {"数学", "一个三角形有几条边？", "3", "4", "5", "6"},
+                {"语文", "请选择\"右\"的正确读音：", "yòu", "yóu", "yǒu", "yōu"},
+                {"数学", "一个圆形有几个角？", "0", "1", "2", "4"},
+                {"语文", "请选择\"黑\"的正确读音：", "hēi", "héi", "hěi", "hèi"},
+                {"数学", "5 + 5 = ?", "10", "9", "11", "8"},
+                {"语文", "请选择\"狗\"的正确读音：", "gǒu", "góu", "gòu", "gōu"},
+                {"数学", "10 - 5 = ?", "5", "4", "6", "7"},
+                {"语文", "请选择\"朋\"的正确读音：", "péng", "pěng", "pèng", "pēng"},
+                {"数学", "3 + 7 = ?", "10", "9", "11", "8"},
+                {"语文", "请选择\"友\"的正确读音：", "yǒu", "yóu", "yòu", "yōu"},
+                {"数学", "9 - 4 = ?", "5", "4", "6", "7"}
+        };
+        return createChapterFromData(8, "课文（二）", "识字 + 图形与数学", data);
     }
 
     // ========== 第9章：课文（三） ==========
     private static Chapter createChapter9() {
-        List<Level> levels = new ArrayList<>();
-        String[] words = {"比", "尾", "巴", "乌", "鸦", "喝", "水", "雨", "点", "儿",
-                "找", "瓶", "石", "子", "渐", "渐", "出", "现", "花", "草"};
-        String[] pinyin = {"bǐ", "wěi", "ba", "wū", "yā", "hē", "shuǐ", "yǔ", "diǎn", "ér",
-                "zhǎo", "píng", "shí", "zi", "jiàn", "jiàn", "chū", "xiàn", "huā", "cǎo"};
-        for (int i = 0; i < 20; i++) {
-            String word = words[i];
-            String correct = pinyin[i];
-            List<String> wrongs = generateWrongPinyin(correct, pinyin, i);
-            String prompt = "请选择 \"" + word + "\" 的正确读音：";
-            Question q = createChoiceQuestion(prompt, correct, wrongs.toArray(new String[0]), "想想这个字的拼音");
-            int uniqueId = 9 * 100 + (i + 1);
-            Level level = new Level(uniqueId, 9, "第" + (i + 1) + "关：课文生字" + word, q, i != 0, false, 0);
-            levels.add(level);
-        }
-        levels.get(0).setLocked(false);
-        return new Chapter(9, "课文（三）", "比尾巴·乌鸦喝水·雨点儿", R.drawable.ic_chapter_placeholder, 20, levels);
+        String[][] data = {
+                {"语文", "请选择\"比\"的正确读音：", "bǐ", "bí", "bì", "bī"},
+                {"数学", "2 + 3 + 1 = ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"尾\"的正确读音：", "wěi", "wéi", "wèi", "wēi"},
+                {"数学", "5 + 3 - 2 = ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"巴\"的正确读音：", "bā", "bá", "bǎ", "bà"},
+                {"数学", "10 - 3 - 2 = ?", "5", "4", "6", "7"},
+                {"语文", "请选择\"乌\"的正确读音：", "wū", "wú", "wǔ", "wù"},
+                {"数学", "4 + 4 - 3 = ?", "5", "4", "6", "7"},
+                {"语文", "请选择\"鸦\"的正确读音：", "yā", "yá", "yǎ", "yà"},
+                {"数学", "7 - 3 + 5 = ?", "9", "8", "10", "7"},
+                {"语文", "请选择\"喝\"的正确读音：", "hē", "hé", "hě", "hè"},
+                {"数学", "6 + 2 - 4 = ?", "4", "3", "5", "6"},
+                {"语文", "请选择\"水\"的正确读音：", "shuǐ", "shuí", "shuì", "shuī"},
+                {"数学", "9 - 5 + 3 = ?", "7", "6", "8", "9"},
+                {"语文", "请选择\"雨\"的正确读音：", "yǔ", "yú", "yù", "yū"},
+                {"数学", "8 - 4 + 2 = ?", "6", "5", "7", "8"},
+                {"语文", "请选择\"点\"的正确读音：", "diǎn", "diàn", "diān", "diǎn"},
+                {"数学", "3 + 5 - 1 = ?", "7", "6", "8", "9"},
+                {"语文", "请选择\"儿\"的正确读音：", "ér", "ěr", "èr", "ēr"},
+                {"数学", "10 - 6 + 4 = ?", "8", "7", "9", "10"}
+        };
+        return createChapterFromData(9, "课文（三）", "识字 + 混合加减", data);
     }
 }

@@ -30,7 +30,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private LevelAdapter adapter;
     private ProgressManager progressManager;
     private List<Level> levels;
-    private TextView tvStars; // 显示星星数量
+    private TextView tvStars;
 
     private TextToSpeech tts;
     private boolean isTtsReady = false;
@@ -59,12 +59,15 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_level, container, false);
         recyclerView = view.findViewById(R.id.recycler_levels);
-        tvStars = view.findViewById(R.id.tv_stars); // 需要在布局中添加
+        tvStars = view.findViewById(R.id.tv_stars);
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 4));
         recyclerView.setHasFixedSize(true);
 
-        // 更新星星显示
+        // 支持遥控器焦点
+        recyclerView.setFocusable(true);
+        recyclerView.setFocusableInTouchMode(true);
+
         updateStarsDisplay();
 
         List<Chapter> all = ChapterDataSource.getAllChapters(getContext());
@@ -77,7 +80,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
         if (chapter != null) {
             levels = chapter.getLevels();
-            // 更新解锁状态
             for (int i = 0; i < levels.size(); i++) {
                 Level level = levels.get(i);
                 if (i == 0) {
@@ -106,27 +108,24 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
                 }
             });
             recyclerView.setAdapter(adapter);
-        } else {
-            Toast.makeText(getContext(), "章节数据错误", Toast.LENGTH_SHORT).show();
+
+            // 请求焦点
+            recyclerView.post(() -> recyclerView.requestFocus());
         }
         return view;
     }
 
     private void updateStarsDisplay() {
         if (tvStars != null) {
-            int stars = progressManager.getStars();
-            tvStars.setText("⭐ " + stars);
+            tvStars.setText("⭐ " + progressManager.getStars());
         }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // 每次返回时刷新星星显示
         updateStarsDisplay();
-        // 刷新关卡解锁状态（可能因星星耗尽而重置）
         if (adapter != null && levels != null) {
-            // 重新检查解锁状态
             for (int i = 0; i < levels.size(); i++) {
                 Level level = levels.get(i);
                 if (i == 0) {
@@ -139,6 +138,9 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
                 level.setCompleted(progressManager.isLevelCompleted(level.getId()));
             }
             adapter.notifyDataSetChanged();
+        }
+        if (recyclerView != null) {
+            recyclerView.post(() -> recyclerView.requestFocus());
         }
     }
 
@@ -155,7 +157,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             isTtsReady = true;
         } else {
             isTtsReady = false;
-            Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
         }
     }
 

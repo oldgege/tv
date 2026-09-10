@@ -113,6 +113,19 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return view;
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 从视频或上一关返回时，重新聚焦到第一个选项
+        if (optionsContainer != null) {
+            optionsContainer.post(() -> {
+                if (optionsContainer.getChildCount() > 0) {
+                    optionsContainer.getChildAt(0).requestFocus();
+                }
+            });
+        }
+    }
+
     private void updateStarsDisplay() {
         if (tvStars != null) {
             int stars = progressManager.getStars();
@@ -181,7 +194,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             optionsContainer.addView(root);
         }
 
-        // 延迟请求焦点，确保布局完成
+        // 延迟请求焦点，确保视图完成布局
         optionsContainer.post(() -> {
             if (optionsContainer.getChildCount() > 0) {
                 optionsContainer.getChildAt(0).requestFocus();
@@ -229,6 +242,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (videoError != null) {
             videoError.stopPlayback();
         }
+        // 清除视频按键监听
+        MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) {
+            activity.clearVideoKeyListener();
+        }
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
@@ -267,48 +285,48 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 成功视频播放 ----------
-    private void playSuccessVideo(final Runnable onComplete) {
-        videoSuccess.setVisibility(View.VISIBLE);
+    // ---------- 通用视频播放方法（支持按键跳过） ----------
+    private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
+        final boolean[] completed = {false};
 
-        int resId = R.raw.success;
-        String uriPath = "android.resource://" + getContext().getPackageName() + "/" + resId;
-        videoSuccess.setVideoURI(Uri.parse(uriPath));
+        // 安全的完成回调，防止重复触发
+        final Runnable safeComplete = () -> {
+            if (completed[0]) return;
+            completed[0] = true;
 
-        videoSuccess.setOnPreparedListener(mp -> {
+            MainActivity activity = (MainActivity) getActivity();
+            if (activity != null) {
+                activity.clearVideoKeyListener();
+            }
+
+            videoView.stopPlayback();
+            videoView.setVisibility(View.GONE);
+
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        };
+
+        // 注册按键监听器（按任意键跳过）
+        MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) {
+            activity.setVideoKeyListener(safeComplete::run);
+        }
+
+        // 播放视频
+        videoView.setVisibility(View.VISIBLE);
+        String uriPath = "android.resource://" + getContext().getPackageName() + "/" + rawResId;
+        videoView.setVideoURI(Uri.parse(uriPath));
+
+        videoView.setOnPreparedListener(mp -> {
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
-            videoSuccess.start();
+            videoView.start();
         });
 
-        videoSuccess.setOnCompletionListener(mp -> {
-            if (onComplete != null) onComplete.run();
-        });
+        videoView.setOnCompletionListener(mp -> safeComplete.run());
 
-        videoSuccess.setOnErrorListener((mp, what, extra) -> {
-            if (onComplete != null) onComplete.run();
-            return true;
-        });
-    }
-
-    // ---------- 失败视频播放 ----------
-    private void playErrorVideo(final Runnable onComplete) {
-        videoError.setVisibility(View.VISIBLE);
-
-        int resId = R.raw.error;
-        String uriPath = "android.resource://" + getContext().getPackageName() + "/" + resId;
-        videoError.setVideoURI(Uri.parse(uriPath));
-
-        videoError.setOnPreparedListener(mp -> {
-            mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
-            videoError.start();
-        });
-
-        videoError.setOnCompletionListener(mp -> {
-            if (onComplete != null) onComplete.run();
-        });
-
-        videoError.setOnErrorListener((mp, what, extra) -> {
-            if (onComplete != null) onComplete.run();
+        videoView.setOnErrorListener((mp, what, extra) -> {
+            safeComplete.run();
             return true;
         });
     }
@@ -328,16 +346,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
         Question q = currentLevel.getQuestion();
         if (selectedIndex == q.getCorrectAnswerIndex()) {
-            // 正确
+            // 答对
             progressManager.addStar();
             progressManager.saveCompletedLevel(currentLevel.getId());
             updateStarsDisplay();
 
             isAnimating = true;
-            playSuccessVideo(() -> {
-                videoSuccess.setVisibility(View.GONE);
-                videoSuccess.stopPlayback();
-
+            playVideoAndWait(videoSuccess, R.raw.success, () -> {
                 int nextId = getNextLevelId();
                 MainActivity activity = (MainActivity) getActivity();
                 if (activity != null) {
@@ -351,7 +366,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 isAnimating = false;
             });
         } else {
-            // 错误
+            // 答错
             progressManager.deductStars(2);
             updateStarsDisplay();
             int remainingStars = progressManager.getStars();
@@ -362,11 +377,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             }
 
             isAnimating = true;
-            playErrorVideo(() -> {
-                videoError.setVisibility(View.GONE);
-                videoError.stopPlayback();
-
-                // 重新播报题目并打乱选项
+            playVideoAndWait(videoError, R.raw.error, () -> {
                 speakText(currentLevel.getQuestion().getPrompt());
                 reshuffleOptions();
                 isAnimating = false;
