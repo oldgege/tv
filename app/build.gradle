@@ -1,23 +1,19 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.greenrobot.greendao'
-greendao {
 
+greendao {
     //数据库版本号
     schemaVersion 1
-
-    //greendao插件自动生成的代码的包名,即DaoMaster 、DaoSession、Dao的包名，默认为数据库表实体类的包名
+    //greendao插件自动生成的代码的包名
     //daoPackage android.defaultConfig.applicationId
-
-    //greendao插件自动生成的代码保存路径，即DaoMaster 、DaoSession、Dao存放的目录，默认路径build/generated/source/greendao
+    //greendao插件自动生成的代码保存路径
     //targetGenDir 'src/main/java'
-
-    //是否生成单元测试代码，值为ture或false，默认是ture
+    //是否生成单元测试代码
     generateTests false
-
-    //生成测试源码的路径，默认src/androidTest/java
+    //生成测试源码的路径
     //targetGenDirTests 'src/androidTest/java'
-
 }
+
 android {
     compileSdkVersion 33
 
@@ -25,10 +21,10 @@ android {
         applicationId "com.wengyj.tv"
         minSdkVersion 18
         targetSdkVersion 28
-        versionCode 1
-        versionName "1.0"
-
+        versionCode 2
+        versionName "2"
     }
+
     signingConfigs {
         config {
             keyAlias 'wengyj'
@@ -37,6 +33,7 @@ android {
             storePassword 'wengyj'
         }
     }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -47,14 +44,28 @@ android {
             signingConfig signingConfigs.config
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    // ========== 自定义 APK 输出文件名 ==========
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            // 获取版本信息
+            def versionCode = variant.versionCode
+            def versionName = variant.versionName
+            // 获取当前日期：年月日
+            def date = new Date().format("yyyyMMdd")
+            // 自定义文件名：versionCode_versionName_年月日.apk
+            outputFileName = "${versionCode}_${versionName}_${date}.apk"
+        }
+    }
+    // =========================================
 }
 
 dependencies {
-
     implementation 'androidx.leanback:leanback:1.0.0'
     implementation 'com.github.bumptech.glide:glide:4.11.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'

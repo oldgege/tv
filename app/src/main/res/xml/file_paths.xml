@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 升级包下载目录：getExternalFilesDir("update") -->
+    <external-files-path
+        name="update"
+        path="update/" />
+</paths>
