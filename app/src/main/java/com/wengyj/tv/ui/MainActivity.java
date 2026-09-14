@@ -1,5 +1,7 @@
 package com.wengyj.tv.ui;
 
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -8,6 +10,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.VideoView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentManager;
@@ -21,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
     private VideoView videoView;
     private FrameLayout fragmentContainer;
+    private TextView tvVersion;
     private Handler handler = new Handler();
 
     // 开场视频播放顺序：begin1 → begin2 → begin3 → begin4
@@ -30,7 +34,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean isIntroPlaying = false;
     private boolean isWaitingForConfirm = false;
 
-    // 记录当前视频的预暂停任务，切换视频时取消
     private Runnable pauseAtEndRunnable;
 
     // ---------- 视频按键监听器（游戏内使用） ----------
@@ -51,25 +54,21 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            // 返回键不拦截
             if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
                 return super.dispatchKeyEvent(event);
             }
 
-            // 等待确认阶段：任意键进入菜单
             if (isWaitingForConfirm) {
                 isWaitingForConfirm = false;
                 finishIntro();
                 return true;
             }
 
-            // 游戏内视频播放阶段：拦截任意按键跳过
             if (videoKeyListener != null) {
                 videoKeyListener.onAnyKeyPressed();
                 return true;
             }
 
-            // 开场视频播放阶段：按任意键跳过全部开场视频
             if (isIntroPlaying) {
                 skipIntro();
                 return true;
@@ -78,23 +77,19 @@ public class MainActivity extends AppCompatActivity {
         return super.dispatchKeyEvent(event);
     }
 
-    // ---------- 触摸屏幕任意位置也进入菜单 ----------
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        // 等待确认阶段：触摸屏幕任意位置进入菜单
         if (isWaitingForConfirm && event.getAction() == MotionEvent.ACTION_DOWN) {
             isWaitingForConfirm = false;
             finishIntro();
             return true;
         }
-        // 开场视频播放阶段：触摸屏幕也跳过
         if (isIntroPlaying && event.getAction() == MotionEvent.ACTION_DOWN) {
             skipIntro();
             return true;
         }
         return super.dispatchTouchEvent(event);
     }
-    // ---------------------------------
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,8 +100,24 @@ public class MainActivity extends AppCompatActivity {
         fragmentManager = getSupportFragmentManager();
         videoView = findViewById(R.id.video_view);
         fragmentContainer = findViewById(R.id.fragment_container);
+        tvVersion = findViewById(R.id.tv_version);
+
+        // 显示版本号
+        tvVersion.setText("v" + getVersionName());
+        tvVersion.setVisibility(View.VISIBLE);
 
         playNextVideo();
+    }
+
+    // 获取当前应用的版本号
+    private String getVersionName() {
+        try {
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return pInfo.versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+            return "1.0.0";
+        }
     }
 
     private void setFullScreen() {
@@ -132,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // 取消上一个预暂停任务
         if (pauseAtEndRunnable != null) {
             handler.removeCallbacks(pauseAtEndRunnable);
             pauseAtEndRunnable = null;
@@ -151,7 +161,6 @@ public class MainActivity extends AppCompatActivity {
             mp.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
             videoView.start();
 
-            // 关键：如果是最后一个视频，在结束前 300ms 暂停，停在最后一帧
             if (isLastVideo) {
                 int duration = mp.getDuration();
                 if (duration > 0) {
@@ -169,13 +178,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         videoView.setOnCompletionListener(mp -> {
-            // 中间视频正常结束：自动播放下一个
             if (!isLastVideo) {
                 currentIndex++;
                 playNextVideo();
-            }
-            // 最后一个视频：兜底（duration 未知时）
-            else if (!isWaitingForConfirm) {
+            } else if (!isWaitingForConfirm) {
                 isIntroPlaying = false;
                 isWaitingForConfirm = true;
             }
@@ -188,7 +194,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // 跳过开场视频，直接进入菜单
     private void skipIntro() {
         isIntroPlaying = false;
         isWaitingForConfirm = false;
@@ -206,6 +211,10 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             videoView.setVisibility(View.GONE);
             videoView.stopPlayback();
+            // 隐藏版本号
+            if (tvVersion != null) {
+                tvVersion.setVisibility(View.GONE);
+            }
             fragmentContainer.setVisibility(View.VISIBLE);
             showChapterFragment();
             handler.removeCallbacksAndMessages(null);

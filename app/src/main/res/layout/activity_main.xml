@@ -5,13 +5,13 @@
     android:layout_height="match_parent"
     android:background="#1E1E1E">
 
-    <!-- 不再设置 focusable，让子视图（RecyclerView）自己获取焦点 -->
+    <!-- 章节内容容器 -->
     <FrameLayout
         android:id="@+id/fragment_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- VideoView 不获取焦点 -->
+    <!-- VideoView 全屏播放 -->
     <VideoView
         android:id="@+id/video_view"
         android:layout_width="match_parent"
@@ -19,5 +19,19 @@
         android:visibility="gone"
         android:focusable="false"
         android:focusableInTouchMode="false" />
+
+    <!-- 版本号显示（启动视频期间可见） -->
+    <TextView
+        android:id="@+id/tv_version"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="20dp"
+        android:padding="10dp"
+        android:background="#88000000"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:text="v1.0.0"
+        android:visibility="gone" />
 
 </FrameLayout>

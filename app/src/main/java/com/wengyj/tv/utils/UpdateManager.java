@@ -41,13 +41,21 @@ public class UpdateManager {
      * https://cdn.jsdelivr.net/gh/用户名/仓库名@main/version.json
      */
     private static final String UPDATE_JSON_URL =
-            "https://cdn.jsdelivr.net/gh/yourname/tv@main/version.json";
+            "https://cdn.jsdelivr.net/gh/oldgege/tv@main/version.json";
 
     private static final String PREFS = "app_update";
     private static final String KEY_PENDING_APK = "pending_apk";
+    private static final String KEY_PENDING_URL = "pending_url";
+    private static final String KEY_PENDING_ETAG = "pending_etag";
 
     private static final int CONNECT_TIMEOUT = 8000;
     private static final int READ_TIMEOUT = 20000;
+    /** HTTP 206 Partial Content */
+    private static final int HTTP_PARTIAL = 206;
+    /** 同一进程内下载重试次数 */
+    private static final int MAX_DOWNLOAD_RETRY = 3;
+    /** 重试基础间隔（毫秒），实际间隔 = 基础间隔 × 已重试次数（3s、6s） */
+    private static final long RETRY_BASE_DELAY = 3000L;
 
     private final Context context;
     private final SharedPreferences prefs;
@@ -100,7 +108,7 @@ public class UpdateManager {
             return;
         }
 
-        Log.i(TAG, "发现新版本 " + remoteCode + "（当前 " + currentCode + "），开始下载");
+        Log.i(TAG, "发现新版本 " + remoteCode + "（当前 " + currentCode + "），开始下载:" + apkUrl);
         File apk = downloadApk(apkUrl, remoteCode);
         if (apk != null) {
             prefs.edit().putString(KEY_PENDING_APK, apk.getAbsolutePath()).apply();
@@ -171,56 +179,141 @@ public class UpdateManager {
         }
     }
 
+    /**
+     * 下载安装包，支持断点续传，同进程内失败自动重试 {@link #MAX_DOWNLOAD_RETRY} 次。
+     * 每次重试都基于已下载的分片续传，不会重复下载已有部分；
+     * 重试间隔递增（3s、6s），给网络恢复留出时间。
+     * 全部失败时保留分片返回 null，下次 App 启动继续。
+     *
+     * @return 下载完成的 APK；未完成返回 null
+     */
     private File downloadApk(String apkUrl, int versionCode) {
+        File dir = context.getExternalFilesDir("update");
+        if (dir == null) {
+            dir = context.getFilesDir();
+        }
+        if (dir == null) {
+            return null;
+        }
+        if (!dir.exists() && !dir.mkdirs()) {
+            return null;
+        }
+
+        File apk = new File(dir, "app-" + versionCode + ".apk");
+
+        // 只清理其它版本的旧包，保留当前版本的半成品用于续传
+        File[] olds = dir.listFiles();
+        if (olds != null) {
+            for (File f : olds) {
+                if (!f.getName().equals(apk.getName())) {
+                    f.delete();
+                }
+            }
+        }
+
+        // 下载地址变了，说明是另一个包，已下载的分片作废
+        if (!apkUrl.equals(prefs.getString(KEY_PENDING_URL, null))) {
+            deleteQuietly(apk);
+            prefs.edit().remove(KEY_PENDING_ETAG).apply();
+        }
+
+        for (int retry = 1; retry <= MAX_DOWNLOAD_RETRY; retry++) {
+            File result = downloadOnce(apkUrl, apk);
+            if (result != null) {
+                return result;
+            }
+            if (retry < MAX_DOWNLOAD_RETRY) {
+                long wait = RETRY_BASE_DELAY * retry;
+                Log.i(TAG, "第 " + retry + " 次下载未完成，"
+                        + (wait / 1000) + " 秒后重试（断点续传）");
+                sleepQuietly(wait);
+            }
+        }
+        Log.w(TAG, "已重试 " + MAX_DOWNLOAD_RETRY + " 次仍未完成，保留分片等待下次启动续传");
+        return null;
+    }
+
+    /**
+     * 单次下载尝试（支持断点续传）。
+     *
+     * @return 下载并校验完成返回 APK；否则返回 null（保留已下载分片）
+     */
+    private File downloadOnce(String apkUrl, File apk) {
         HttpURLConnection conn = null;
         InputStream in = null;
         FileOutputStream out = null;
         try {
-            File dir = context.getExternalFilesDir("update");
-            if (dir == null) {
-                dir = context.getFilesDir();
-            }
-            if (dir == null) {
-                return null;
-            }
-            // 清理旧安装包，避免占用空间
-            File[] olds = dir.listFiles();
-            if (olds != null) {
-                for (File f : olds) {
-                    f.delete();
-                }
-            } else {
-                dir.mkdirs();
-            }
-
-            File apk = new File(dir, "app-" + versionCode + ".apk");
+            long downloaded = apk.exists() ? apk.length() : 0;
 
             conn = (HttpURLConnection) new URL(apkUrl).openConnection();
             conn.setInstanceFollowRedirects(true);
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setRequestProperty("User-Agent", "TV-Updater");
+            if (downloaded > 0) {
+                // 关键：请求从断点处开始传输
+                conn.setRequestProperty("Range", "bytes=" + downloaded + "-");
+            }
             conn.connect();
 
             int code = conn.getResponseCode();
-            if (code != HttpURLConnection.HTTP_OK) {
+            if (code != HttpURLConnection.HTTP_OK && code != HTTP_PARTIAL) {
                 Log.w(TAG, "下载失败 HTTP " + code);
                 return null;
             }
 
+            String etag = conn.getHeaderField("ETag");
+            String savedEtag = prefs.getString(KEY_PENDING_ETAG, null);
+
+            if (code == HttpURLConnection.HTTP_OK) {
+                // 服务端不支持/忽略了 Range，只能从头下载
+                downloaded = 0;
+                deleteQuietly(apk);
+            } else if (savedEtag != null && etag != null && !savedEtag.equals(etag)) {
+                // 远端文件被替换过，已有分片作废，下次重试将全量下载
+                Log.w(TAG, "远端文件已变化，放弃续传，改为全量下载");
+                deleteQuietly(apk);
+                prefs.edit().remove(KEY_PENDING_ETAG).apply();
+                return null;
+            }
+
+            prefs.edit().putString(KEY_PENDING_URL, apkUrl).apply();
+            if (etag != null) {
+                prefs.edit().putString(KEY_PENDING_ETAG, etag).apply();
+            }
+
+            // 期望的完整大小，用于校验是否下完
+            long expected = parseTotalSize(conn, downloaded);
+
             in = conn.getInputStream();
-            out = new FileOutputStream(apk);
+            out = new FileOutputStream(apk, downloaded > 0);
             byte[] buf = new byte[8192];
             int len;
             while ((len = in.read(buf)) != -1) {
                 out.write(buf, 0, len);
             }
             out.flush();
+            closeQuietly(out);
+            out = null;
+            closeQuietly(in);
+            in = null;
 
-            Log.i(TAG, "下载完成: " + apk.getAbsolutePath() + " size=" + apk.length());
+            long realSize = apk.length();
+            if (realSize == 0) {
+                deleteQuietly(apk);
+                return null;
+            }
+            if (expected > 0 && realSize != expected) {
+                Log.w(TAG, "文件不完整 " + realSize + "/" + expected + "，保留分片等待续传");
+                return null;
+            }
+
+            Log.i(TAG, "下载完成: " + apk.getAbsolutePath() + " size=" + realSize
+                    + (downloaded > 0 ? "（续传自 " + downloaded + " 字节）" : ""));
+            prefs.edit().remove(KEY_PENDING_ETAG).apply();
             return apk;
         } catch (Exception e) {
-            Log.w(TAG, "下载异常: " + e.getMessage());
+            Log.w(TAG, "下载中断，已保留分片待续传: " + e.getMessage());
             return null;
         } finally {
             closeQuietly(in);
@@ -228,6 +321,40 @@ public class UpdateManager {
             if (conn != null) {
                 conn.disconnect();
             }
+        }
+    }
+
+    /** 从响应头解析文件完整大小：优先 Content-Range，其次 Content-Length */
+    private static long parseTotalSize(HttpURLConnection conn, long downloaded) {
+        String range = conn.getHeaderField("Content-Range");
+        if (range != null && range.contains("/")) {
+            try {
+                return Long.parseLong(range.substring(range.lastIndexOf('/') + 1).trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        String len = conn.getHeaderField("Content-Length");
+        if (len != null) {
+            try {
+                return downloaded + Long.parseLong(len.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return -1;
+    }
+
+    private static void deleteQuietly(File f) {
+        if (f != null && f.exists()) {
+            f.delete();
+        }
+    }
+
+    /** 重试前的等待，本方法运行在后台线程，可以安全睡眠 */
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
