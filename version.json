@@ -1,7 +1,7 @@
 {
-  "versionCode": 3,
-  "versionName": "3",
-  "apkUrl": "https://github.com/oldgege/tv/releases/download/v3/3_3_20260914.apk",
+  "versionCode": 5,
+  "versionName": "5",
+  "apkUrl": "https://github.com/oldgege/tv/releases/download/v5/5_5_20260914.apk",
   "forceUpdate": false,
   "updateLog": "1. 新增远程升级"
 }
