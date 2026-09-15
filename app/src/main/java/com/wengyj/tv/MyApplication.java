@@ -2,7 +2,6 @@ package com.wengyj.tv;
 
 import android.app.Application;
 
-import com.blankj.utilcode.util.ShellUtils;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
 import com.wengyj.tv.utils.UpdateManager;
