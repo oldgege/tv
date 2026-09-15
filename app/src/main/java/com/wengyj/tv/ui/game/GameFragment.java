@@ -66,7 +66,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        tts = new TextToSpeech(getContext(), this);
+        String iflytekEnginePackage = "com.iflytek.speechcloud";
+        tts = new TextToSpeech(getContext(), this,iflytekEnginePackage);
     }
 
     @Nullable
