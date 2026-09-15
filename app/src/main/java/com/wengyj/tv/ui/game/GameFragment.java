@@ -72,7 +72,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        tts = new TextToSpeech(getContext(), this);
+        tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
     }
 
     @Nullable
@@ -137,7 +137,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
         // 用户可能从 TTS 设置页返回，尝试重新初始化
         if (!isTtsReady && tts == null) {
-            tts = new TextToSpeech(getContext(), this);
+            tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
         }
     }
 

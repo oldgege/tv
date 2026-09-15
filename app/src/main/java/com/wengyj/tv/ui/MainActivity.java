@@ -19,6 +19,7 @@ import com.wengyj.tv.R;
 import com.wengyj.tv.ui.chapter.ChapterFragment;
 import com.wengyj.tv.ui.level.LevelFragment;
 import com.wengyj.tv.ui.game.GameFragment;
+import com.wengyj.tv.utils.MusicManager;
 
 public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
@@ -108,6 +109,22 @@ public class MainActivity extends AppCompatActivity {
 
         playNextVideo();
     }
+
+    // ---------- 生命周期：处理背景音乐 ----------
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 回到前台：恢复背景音乐
+        MusicManager.getInstance(this).start();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // 退到后台：暂停背景音乐
+        MusicManager.getInstance(this).pause();
+    }
+    // -----------------------------------------
 
     // 获取当前应用的版本号
     private String getVersionName() {
@@ -211,7 +228,6 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             videoView.setVisibility(View.GONE);
             videoView.stopPlayback();
-            // 隐藏版本号
             if (tvVersion != null) {
                 tvVersion.setVisibility(View.GONE);
             }

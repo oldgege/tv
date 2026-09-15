@@ -56,7 +56,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        tts = new TextToSpeech(getContext(), this);
+        tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
     }
 
     @Nullable
@@ -147,7 +147,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
         // 从 TTS 设置返回后重新初始化
         if (!isTtsReady && tts == null) {
-            tts = new TextToSpeech(getContext(), this);
+            tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
         }
     }
 
