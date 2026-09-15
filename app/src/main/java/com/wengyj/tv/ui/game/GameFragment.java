@@ -32,17 +32,16 @@ import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
 import com.wengyj.tv.ui.MainActivity;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 
 public class GameFragment extends Fragment implements TextToSpeech.OnInitListener {
     private static final String ARG_LEVEL_ID = "level_id";
 
-    // 讯飞 TTS 引擎包名
     private static final String IFLYTEK_TTS_ENGINE = "com.iflytek.speechcloud";
-
-    // 静态标记：只在应用生命周期内跳转一次系统TTS设置
     private static boolean hasOpenedTtsSettings = false;
 
     private int levelId;
@@ -56,11 +55,14 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private TextToSpeech tts;
     private boolean isTtsReady = false;
-    // 是否已尝试过讯飞引擎
     private boolean triedIflytek = false;
 
     private Handler handler = new Handler();
     private boolean isAnimating = false;
+
+    // 缓存错误视频列表（避免每次都查找）
+    private List<Integer> errorVideoList = null;
+    private final Random random = new Random();
 
     public static GameFragment newInstance(int levelId) {
         GameFragment fragment = new GameFragment();
@@ -80,26 +82,17 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         initDefaultTts();
     }
 
-    /**
-     * 第一步：尝试默认 TTS 引擎
-     */
     private void initDefaultTts() {
         releaseTts();
         tts = new TextToSpeech(getContext(), this);
     }
 
-    /**
-     * 第二步：尝试讯飞 TTS 引擎
-     */
     private void initIflytekTts() {
         releaseTts();
         triedIflytek = true;
         tts = new TextToSpeech(getContext(), this, IFLYTEK_TTS_ENGINE);
     }
 
-    /**
-     * 释放旧的 TTS 实例
-     */
     private void releaseTts() {
         if (tts != null) {
             try {
@@ -171,10 +164,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 }
             });
         }
-        // 从 TTS 设置返回或 TTS 未就绪时，重新初始化
         if (!isTtsReady && tts == null) {
             triedIflytek = false;
-            hasOpenedTtsSettings = false; // 允许重新跳转
+            hasOpenedTtsSettings = false;
             initDefaultTts();
         }
     }
@@ -254,7 +246,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         });
     }
 
-    // ---------- TTS 回调 ----------
+    // ---------- TTS ----------
     @Override
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
@@ -264,11 +256,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             }
 
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                // 引擎可用但中文不支持，尝试讯飞
                 if (!triedIflytek) {
                     initIflytekTts();
                 } else {
-                    // 讯飞也不支持中文，打开设置页
                     isTtsReady = false;
                     openTtsSettingsOnce();
                 }
@@ -282,21 +272,15 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 }
             }
         } else {
-            // 初始化失败
             if (!triedIflytek) {
-                // 尝试讯飞引擎
                 initIflytekTts();
             } else {
-                // 讯飞也失败，打开设置页
                 isTtsReady = false;
                 openTtsSettingsOnce();
             }
         }
     }
 
-    /**
-     * 打开系统 TTS 设置页（只跳转一次）
-     */
     private void openTtsSettingsOnce() {
         if (hasOpenedTtsSettings) {
             if (getContext() != null) {
@@ -367,6 +351,46 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         super.onDestroy();
     }
 
+    // ---------- 动态查找所有 error 视频 ----------
+    /**
+     * 查找所有以 "error" 开头的 raw 资源：
+     * error, error1, error2, error3 ...
+     * 返回非空列表；如果没有找到任何，返回空列表。
+     */
+    private List<Integer> findErrorVideos() {
+        if (errorVideoList != null) return errorVideoList;
+
+        List<Integer> list = new ArrayList<>();
+        String packageName = getContext().getPackageName();
+
+        // 先尝试 error（无数字后缀）
+        int baseId = getResources().getIdentifier("error", "raw", packageName);
+        if (baseId != 0) {
+            list.add(baseId);
+        }
+
+        // 再尝试 error1, error2, error3 ... 最多 20 个
+        for (int i = 1; i <= 20; i++) {
+            int id = getResources().getIdentifier("error" + i, "raw", packageName);
+            if (id != 0) {
+                list.add(id);
+            }
+        }
+
+        errorVideoList = list;
+        return list;
+    }
+
+    /**
+     * 随机获取一个错误视频资源 ID
+     * 若无任何 error 视频，返回 0
+     */
+    private int getRandomErrorVideoResId() {
+        List<Integer> list = findErrorVideos();
+        if (list.isEmpty()) return 0;
+        return list.get(random.nextInt(list.size()));
+    }
+
     // ---------- 判断当前关是否为本章最后一关 ----------
     private boolean isLastLevelOfChapter() {
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
@@ -432,6 +456,12 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     // ---------- 通用视频播放方法 ----------
     private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
+        if (rawResId == 0) {
+            // 没有视频，直接执行回调
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+
         final boolean[] completed = {false};
 
         final Runnable safeComplete = () -> {
@@ -548,7 +578,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             }
 
             isAnimating = true;
-            playVideoAndWait(videoError, R.raw.error, () -> {
+
+            // 随机选择一个错误视频
+            int errorResId = getRandomErrorVideoResId();
+
+            playVideoAndWait(videoError, errorResId, () -> {
                 speakCurrentQuestion();
                 reshuffleOptions();
                 isAnimating = false;
