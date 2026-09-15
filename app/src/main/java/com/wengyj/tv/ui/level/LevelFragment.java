@@ -1,5 +1,7 @@
 package com.wengyj.tv.ui.level;
 
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
@@ -25,6 +27,10 @@ import java.util.Locale;
 
 public class LevelFragment extends Fragment implements TextToSpeech.OnInitListener {
     private static final String ARG_CHAPTER_ID = "chapter_id";
+
+    // 静态标记：只在应用生命周期内跳转一次，避免反复打扰
+    private static boolean hasOpenedTtsSettings = false;
+
     private int chapterId;
     private RecyclerView recyclerView;
     private LevelAdapter adapter;
@@ -50,9 +56,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        String iflytekEnginePackage = "com.iflytek.speechcloud";
-        tts = new TextToSpeech(getContext(), this,iflytekEnginePackage);
-
+        tts = new TextToSpeech(getContext(), this);
     }
 
     @Nullable
@@ -65,8 +69,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 4));
         recyclerView.setHasFixedSize(true);
-
-        // 支持遥控器焦点
         recyclerView.setFocusable(true);
         recyclerView.setFocusableInTouchMode(true);
 
@@ -111,7 +113,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             });
             recyclerView.setAdapter(adapter);
 
-            // 请求焦点
             recyclerView.post(() -> recyclerView.requestFocus());
         }
         return view;
@@ -144,6 +145,10 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         if (recyclerView != null) {
             recyclerView.post(() -> recyclerView.requestFocus());
         }
+        // 从 TTS 设置返回后重新初始化
+        if (!isTtsReady && tts == null) {
+            tts = new TextToSpeech(getContext(), this);
+        }
     }
 
     // ---------- TTS ----------
@@ -152,13 +157,59 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         if (status == TextToSpeech.SUCCESS) {
             int result = tts.setLanguage(Locale.CHINESE);
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts.setLanguage(Locale.US);
+                result = tts.setLanguage(Locale.CHINA);
             }
-            tts.setSpeechRate(0.7f);
-            tts.setPitch(1.1f);
-            isTtsReady = true;
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                isTtsReady = false;
+                openTtsSettingsOnce();
+            } else {
+                tts.setSpeechRate(0.7f);
+                tts.setPitch(1.1f);
+                isTtsReady = true;
+            }
         } else {
             isTtsReady = false;
+            openTtsSettingsOnce();
+        }
+    }
+
+    /**
+     * 打开系统 TTS 设置页（只跳转一次）
+     */
+    private void openTtsSettingsOnce() {
+        if (hasOpenedTtsSettings) {
+            if (getContext() != null) {
+                Toast.makeText(getContext(), "语音播报不可用，请检查系统语音设置",
+                        Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        hasOpenedTtsSettings = true;
+
+        if (getContext() != null) {
+            Toast.makeText(getContext(), "语音引擎不可用，正在打开语音设置...",
+                    Toast.LENGTH_LONG).show();
+        }
+
+        // 优先打开 TTS 引擎设置页
+        try {
+            Intent intent = new Intent("android.speech.tts.engine.TTS_SETTINGS");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (ActivityNotFoundException e) {
+            // 忽略
+        }
+
+        // 降级到系统设置
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            if (getContext() != null) {
+                Toast.makeText(getContext(), "无法打开系统设置", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 

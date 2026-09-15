@@ -2,6 +2,8 @@ package com.wengyj.tv.ui.game;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
@@ -36,6 +38,10 @@ import java.util.Locale;
 
 public class GameFragment extends Fragment implements TextToSpeech.OnInitListener {
     private static final String ARG_LEVEL_ID = "level_id";
+
+    // 静态标记：只在应用生命周期内跳转一次系统TTS设置，避免反复打扰
+    private static boolean hasOpenedTtsSettings = false;
+
     private int levelId;
     private Level currentLevel;
     private TextView tvQuestion, tvHint;
@@ -66,8 +72,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        String iflytekEnginePackage = "com.iflytek.speechcloud";
-        tts = new TextToSpeech(getContext(), this,iflytekEnginePackage);
+        tts = new TextToSpeech(getContext(), this);
     }
 
     @Nullable
@@ -129,6 +134,10 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                     optionsContainer.getChildAt(0).requestFocus();
                 }
             });
+        }
+        // 用户可能从 TTS 设置页返回，尝试重新初始化
+        if (!isTtsReady && tts == null) {
+            tts = new TextToSpeech(getContext(), this);
         }
     }
 
@@ -213,18 +222,66 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (status == TextToSpeech.SUCCESS) {
             int result = tts.setLanguage(Locale.CHINESE);
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts.setLanguage(Locale.US);
+                result = tts.setLanguage(Locale.CHINA);
             }
-            tts.setSpeechRate(0.5f);
-            tts.setPitch(1.1f);
-            isTtsReady = true;
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                // 中文不支持，仍尝试打开设置
+                isTtsReady = false;
+                openTtsSettingsOnce();
+            } else {
+                tts.setSpeechRate(0.5f);
+                tts.setPitch(1.1f);
+                isTtsReady = true;
 
-            if (currentLevel != null && tvQuestion != null) {
-                speakCurrentQuestion();
+                if (currentLevel != null && tvQuestion != null) {
+                    speakCurrentQuestion();
+                }
             }
         } else {
+            // 初始化失败
             isTtsReady = false;
-            Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
+            openTtsSettingsOnce();
+        }
+    }
+
+    /**
+     * 打开系统 TTS 设置页（只跳转一次，避免反复打扰）
+     */
+    private void openTtsSettingsOnce() {
+        if (hasOpenedTtsSettings) {
+            // 已经跳转过，仅提示
+            if (getContext() != null) {
+                Toast.makeText(getContext(), "语音播报不可用，请检查系统语音设置",
+                        Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        hasOpenedTtsSettings = true;
+
+        if (getContext() != null) {
+            Toast.makeText(getContext(), "语音引擎不可用，正在打开语音设置...",
+                    Toast.LENGTH_LONG).show();
+        }
+
+        // 优先打开 TTS 引擎设置页
+        try {
+            Intent intent = new Intent("android.speech.tts.engine.TTS_SETTINGS");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (ActivityNotFoundException e) {
+            // 忽略，尝试其他方式
+        }
+
+        // 降级：打开系统设置
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            if (getContext() != null) {
+                Toast.makeText(getContext(), "无法打开系统设置", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -262,7 +319,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (activity != null) {
             activity.clearVideoKeyListener();
         }
-        // 恢复 BGM 音量
         MusicManager.getInstance(getContext()).restoreVolume();
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
@@ -347,7 +403,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             videoView.stopPlayback();
             videoView.setVisibility(View.GONE);
 
-            // 恢复 BGM 音量
             MusicManager.getInstance(getContext()).restoreVolume();
 
             if (onComplete != null) {
@@ -360,7 +415,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             activity.setVideoKeyListener(safeComplete::run);
         }
 
-        // 视频播放时降低 BGM 音量
         MusicManager.getInstance(getContext()).lowerVolume();
 
         videoView.setVisibility(View.VISIBLE);
