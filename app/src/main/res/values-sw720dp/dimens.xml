@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="question_text_size">48sp</dimen>
+    <dimen name="hint_text_size">26sp</dimen>
+    <dimen name="star_icon_text_size">40sp</dimen>
+    <dimen name="star_count_text_size">36sp</dimen>
+    <dimen name="option_text_size">36sp</dimen>
+    <dimen name="monster_card_width">200dp</dimen>
+    <dimen name="monster_card_height">220dp</dimen>
+    <dimen name="monster_body_size">170dp</dimen>
+    <dimen name="monster_eye_size">24dp</dimen>
+    <dimen name="monster_eye_margin_top">28dp</dimen>
+    <dimen name="monster_eye_margin_side">40dp</dimen>
+</resources>

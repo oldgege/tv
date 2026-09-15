@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 题目文字 -->
+    <dimen name="question_text_size">32sp</dimen>
+    <!-- 提示文字 -->
+    <dimen name="hint_text_size">18sp</dimen>
+    <!-- 星星图标 -->
+    <dimen name="star_icon_text_size">28sp</dimen>
+    <!-- 星星数量 -->
+    <dimen name="star_count_text_size">24sp</dimen>
+    <!-- 选项文字 -->
+    <dimen name="option_text_size">26sp</dimen>
+    <!-- 怪兽卡片 -->
+    <dimen name="monster_card_width">130dp</dimen>
+    <dimen name="monster_card_height">150dp</dimen>
+    <dimen name="monster_body_size">110dp</dimen>
+    <dimen name="monster_eye_size">16dp</dimen>
+    <dimen name="monster_eye_margin_top">18dp</dimen>
+    <dimen name="monster_eye_margin_side">26dp</dimen>
+</resources>

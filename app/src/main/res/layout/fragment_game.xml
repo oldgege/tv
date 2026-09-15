@@ -9,7 +9,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
-        android:layout_margin="16dp"
+        android:layout_margin="24dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
@@ -18,7 +18,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⭐"
-            android:textSize="28sp"
+            android:textSize="@dimen/star_icon_text_size"
             android:textColor="#FFD700" />
 
         <TextView
@@ -27,39 +27,41 @@
             android:layout_height="wrap_content"
             android:text="20"
             android:textColor="#FFD700"
-            android:textSize="24sp"
+            android:textSize="@dimen/star_count_text_size"
             android:textStyle="bold"
-            android:layout_marginStart="4dp" />
+            android:layout_marginStart="8dp" />
     </LinearLayout>
 
-    <!-- 题目和选项主内容 -->
+    <!-- 题目和选项 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
-        android:padding="32dp"
-        android:layout_marginBottom="60dp">
+        android:padding="40dp"
+        android:layout_marginTop="40dp"
+        android:layout_marginBottom="20dp">
 
         <TextView
             android:id="@+id/tv_question"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="题目"
-            android:textSize="32sp"
+            android:textSize="@dimen/question_text_size"
+            android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:gravity="center"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginBottom="20dp" />
 
         <TextView
             android:id="@+id/tv_hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="提示"
-            android:textSize="18sp"
-            android:textColor="#AAAAAA"
+            android:textSize="@dimen/hint_text_size"
+            android:textColor="#CCCCCC"
             android:gravity="center"
-            android:layout_marginBottom="32dp" />
+            android:layout_marginBottom="40dp" />
 
         <LinearLayout
             android:id="@+id/options_container"
@@ -69,7 +71,7 @@
             android:gravity="center" />
     </LinearLayout>
 
-    <!-- 成功视频（VideoView） -->
+    <!-- 成功视频 -->
     <VideoView
         android:id="@+id/video_success"
         android:layout_width="match_parent"
@@ -78,7 +80,7 @@
         android:focusable="false"
         android:focusableInTouchMode="false" />
 
-    <!-- 失败视频（VideoView） -->
+    <!-- 错误视频 -->
     <VideoView
         android:id="@+id/video_error"
         android:layout_width="match_parent"

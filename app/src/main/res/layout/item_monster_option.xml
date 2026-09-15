@@ -1,29 +1,29 @@
-<!-- res/layout/item_monster_option.xml -->
+<?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="130dp"
-    android:layout_height="150dp"
+    android:layout_width="@dimen/monster_card_width"
+    android:layout_height="@dimen/monster_card_height"
     android:focusable="true"
     android:clickable="true"
     android:background="@android:color/transparent"
-    android:padding="4dp"
+    android:padding="8dp"
     android:clipChildren="false"
     android:clipToPadding="false">
 
     <!-- 圆形身体 -->
     <ImageView
         android:id="@+id/iv_monster_body"
-        android:layout_width="110dp"
-        android:layout_height="110dp"
+        android:layout_width="@dimen/monster_body_size"
+        android:layout_height="@dimen/monster_body_size"
         android:layout_centerInParent="true"
         android:src="@drawable/monster_body_1" />
 
     <!-- 左眼 -->
     <View
         android:id="@+id/eye_left"
-        android:layout_width="16dp"
-        android:layout_height="16dp"
-        android:layout_marginTop="18dp"
-        android:layout_marginStart="26dp"
+        android:layout_width="@dimen/monster_eye_size"
+        android:layout_height="@dimen/monster_eye_size"
+        android:layout_marginTop="@dimen/monster_eye_margin_top"
+        android:layout_marginStart="@dimen/monster_eye_margin_side"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
         android:background="@drawable/eye_white" />
@@ -31,10 +31,10 @@
     <!-- 右眼 -->
     <View
         android:id="@+id/eye_right"
-        android:layout_width="16dp"
-        android:layout_height="16dp"
-        android:layout_marginTop="18dp"
-        android:layout_marginEnd="26dp"
+        android:layout_width="@dimen/monster_eye_size"
+        android:layout_height="@dimen/monster_eye_size"
+        android:layout_marginTop="@dimen/monster_eye_margin_top"
+        android:layout_marginEnd="@dimen/monster_eye_margin_side"
         android:layout_alignParentEnd="true"
         android:layout_alignParentTop="true"
         android:background="@drawable/eye_white" />
@@ -47,13 +47,12 @@
         android:layout_centerInParent="true"
         android:text="选项"
         android:textColor="#FFFFFF"
-        android:textSize="26sp"
+        android:textSize="@dimen/option_text_size"
         android:textStyle="bold"
         android:gravity="center"
         android:shadowColor="#000000"
-        android:shadowDx="2"
-        android:shadowDy="2"
-        android:shadowRadius="4" />
-
+        android:shadowDx="3"
+        android:shadowDy="3"
+        android:shadowRadius="6" />
 
 </RelativeLayout>
