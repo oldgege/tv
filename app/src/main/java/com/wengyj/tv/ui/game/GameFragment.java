@@ -39,7 +39,10 @@ import java.util.Locale;
 public class GameFragment extends Fragment implements TextToSpeech.OnInitListener {
     private static final String ARG_LEVEL_ID = "level_id";
 
-    // 静态标记：只在应用生命周期内跳转一次系统TTS设置，避免反复打扰
+    // 讯飞 TTS 引擎包名
+    private static final String IFLYTEK_TTS_ENGINE = "com.iflytek.speechcloud";
+
+    // 静态标记：只在应用生命周期内跳转一次系统TTS设置
     private static boolean hasOpenedTtsSettings = false;
 
     private int levelId;
@@ -53,8 +56,10 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private TextToSpeech tts;
     private boolean isTtsReady = false;
-    private Handler handler = new Handler();
+    // 是否已尝试过讯飞引擎
+    private boolean triedIflytek = false;
 
+    private Handler handler = new Handler();
     private boolean isAnimating = false;
 
     public static GameFragment newInstance(int levelId) {
@@ -72,7 +77,38 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
+        initDefaultTts();
+    }
+
+    /**
+     * 第一步：尝试默认 TTS 引擎
+     */
+    private void initDefaultTts() {
+        releaseTts();
+        tts = new TextToSpeech(getContext(), this);
+    }
+
+    /**
+     * 第二步：尝试讯飞 TTS 引擎
+     */
+    private void initIflytekTts() {
+        releaseTts();
+        triedIflytek = true;
+        tts = new TextToSpeech(getContext(), this, IFLYTEK_TTS_ENGINE);
+    }
+
+    /**
+     * 释放旧的 TTS 实例
+     */
+    private void releaseTts() {
+        if (tts != null) {
+            try {
+                tts.stop();
+                tts.shutdown();
+            } catch (Exception ignored) {}
+            tts = null;
+        }
+        isTtsReady = false;
     }
 
     @Nullable
@@ -135,9 +171,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 }
             });
         }
-        // 用户可能从 TTS 设置页返回，尝试重新初始化
+        // 从 TTS 设置返回或 TTS 未就绪时，重新初始化
         if (!isTtsReady && tts == null) {
-            tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
+            triedIflytek = false;
+            hasOpenedTtsSettings = false; // 允许重新跳转
+            initDefaultTts();
         }
     }
 
@@ -216,7 +254,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         });
     }
 
-    // ---------- TTS ----------
+    // ---------- TTS 回调 ----------
     @Override
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
@@ -224,10 +262,16 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 result = tts.setLanguage(Locale.CHINA);
             }
+
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                // 中文不支持，仍尝试打开设置
-                isTtsReady = false;
-                openTtsSettingsOnce();
+                // 引擎可用但中文不支持，尝试讯飞
+                if (!triedIflytek) {
+                    initIflytekTts();
+                } else {
+                    // 讯飞也不支持中文，打开设置页
+                    isTtsReady = false;
+                    openTtsSettingsOnce();
+                }
             } else {
                 tts.setSpeechRate(0.5f);
                 tts.setPitch(1.1f);
@@ -239,17 +283,22 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             }
         } else {
             // 初始化失败
-            isTtsReady = false;
-            openTtsSettingsOnce();
+            if (!triedIflytek) {
+                // 尝试讯飞引擎
+                initIflytekTts();
+            } else {
+                // 讯飞也失败，打开设置页
+                isTtsReady = false;
+                openTtsSettingsOnce();
+            }
         }
     }
 
     /**
-     * 打开系统 TTS 设置页（只跳转一次，避免反复打扰）
+     * 打开系统 TTS 设置页（只跳转一次）
      */
     private void openTtsSettingsOnce() {
         if (hasOpenedTtsSettings) {
-            // 已经跳转过，仅提示
             if (getContext() != null) {
                 Toast.makeText(getContext(), "语音播报不可用，请检查系统语音设置",
                         Toast.LENGTH_SHORT).show();
@@ -263,17 +312,15 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                     Toast.LENGTH_LONG).show();
         }
 
-        // 优先打开 TTS 引擎设置页
         try {
             Intent intent = new Intent("android.speech.tts.engine.TTS_SETTINGS");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             return;
         } catch (ActivityNotFoundException e) {
-            // 忽略，尝试其他方式
+            // 忽略
         }
 
-        // 降级：打开系统设置
         try {
             Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -304,11 +351,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     @Override
     public void onDestroy() {
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
-            tts = null;
-        }
+        releaseTts();
         if (videoSuccess != null) {
             videoSuccess.stopPlayback();
         }
@@ -387,7 +430,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 通用视频播放方法（支持按键跳过，播放期间降低 BGM 音量） ----------
+    // ---------- 通用视频播放方法 ----------
     private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
         final boolean[] completed = {false};
 
@@ -434,7 +477,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         });
     }
 
-    // ---------- 星星耗尽：播放 game_over 视频后重置并返回菜单 ----------
+    // ---------- 星星耗尽 ----------
     private void resetAllProgressAndGoHome() {
         int resId = getResources().getIdentifier("game_over", "raw", getContext().getPackageName());
         if (resId != 0) {

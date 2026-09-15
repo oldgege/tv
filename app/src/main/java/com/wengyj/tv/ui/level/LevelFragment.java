@@ -28,7 +28,7 @@ import java.util.Locale;
 public class LevelFragment extends Fragment implements TextToSpeech.OnInitListener {
     private static final String ARG_CHAPTER_ID = "chapter_id";
 
-    // 静态标记：只在应用生命周期内跳转一次，避免反复打扰
+    private static final String IFLYTEK_TTS_ENGINE = "com.iflytek.speechcloud";
     private static boolean hasOpenedTtsSettings = false;
 
     private int chapterId;
@@ -40,6 +40,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
 
     private TextToSpeech tts;
     private boolean isTtsReady = false;
+    private boolean triedIflytek = false;
 
     public static LevelFragment newInstance(int chapterId) {
         LevelFragment fragment = new LevelFragment();
@@ -56,7 +57,29 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
+        initDefaultTts();
+    }
+
+    private void initDefaultTts() {
+        releaseTts();
+        tts = new TextToSpeech(getContext(), this);
+    }
+
+    private void initIflytekTts() {
+        releaseTts();
+        triedIflytek = true;
+        tts = new TextToSpeech(getContext(), this, IFLYTEK_TTS_ENGINE);
+    }
+
+    private void releaseTts() {
+        if (tts != null) {
+            try {
+                tts.stop();
+                tts.shutdown();
+            } catch (Exception ignored) {}
+            tts = null;
+        }
+        isTtsReady = false;
     }
 
     @Nullable
@@ -147,11 +170,13 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
         // 从 TTS 设置返回后重新初始化
         if (!isTtsReady && tts == null) {
-            tts = new TextToSpeech(getContext(), this,"com.iflytek.speechcloud");
+            triedIflytek = false;
+            hasOpenedTtsSettings = false;
+            initDefaultTts();
         }
     }
 
-    // ---------- TTS ----------
+    // ---------- TTS 回调 ----------
     @Override
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
@@ -160,22 +185,27 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
                 result = tts.setLanguage(Locale.CHINA);
             }
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                isTtsReady = false;
-                openTtsSettingsOnce();
+                if (!triedIflytek) {
+                    initIflytekTts();
+                } else {
+                    isTtsReady = false;
+                    openTtsSettingsOnce();
+                }
             } else {
                 tts.setSpeechRate(0.7f);
                 tts.setPitch(1.1f);
                 isTtsReady = true;
             }
         } else {
-            isTtsReady = false;
-            openTtsSettingsOnce();
+            if (!triedIflytek) {
+                initIflytekTts();
+            } else {
+                isTtsReady = false;
+                openTtsSettingsOnce();
+            }
         }
     }
 
-    /**
-     * 打开系统 TTS 设置页（只跳转一次）
-     */
     private void openTtsSettingsOnce() {
         if (hasOpenedTtsSettings) {
             if (getContext() != null) {
@@ -191,7 +221,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
                     Toast.LENGTH_LONG).show();
         }
 
-        // 优先打开 TTS 引擎设置页
         try {
             Intent intent = new Intent("android.speech.tts.engine.TTS_SETTINGS");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -201,7 +230,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             // 忽略
         }
 
-        // 降级到系统设置
         try {
             Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -221,11 +249,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
 
     @Override
     public void onDestroy() {
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
-            tts = null;
-        }
+        releaseTts();
         super.onDestroy();
     }
 }
