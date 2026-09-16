@@ -15,21 +15,25 @@ import com.wengyj.tv.R;
 import com.wengyj.tv.data.model.Chapter;
 
 import java.util.List;
+import java.util.Set;
 
 public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHolder> {
     private List<Chapter> chapters;
+    private Set<Integer> unlockedChapterIds;   // 已解锁的章节 ID 集合
     private OnChapterClickListener listener;
 
-    // 默认背景色 & 焦点背景色（亮橙色）
     private static final int COLOR_NORMAL = Color.parseColor("#333333");
     private static final int COLOR_FOCUSED = Color.parseColor("#FF9800");
+    private static final int COLOR_LOCKED = Color.parseColor("#222222");
 
     public interface OnChapterClickListener {
-        void onChapterClick(Chapter chapter);
+        void onChapterClick(Chapter chapter, boolean isLocked);
     }
 
-    public ChapterAdapter(List<Chapter> chapters, OnChapterClickListener listener) {
+    public ChapterAdapter(List<Chapter> chapters, Set<Integer> unlockedChapterIds,
+                          OnChapterClickListener listener) {
         this.chapters = chapters;
+        this.unlockedChapterIds = unlockedChapterIds;
         this.listener = listener;
     }
 
@@ -44,14 +48,18 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Chapter chapter = chapters.get(position);
+        boolean isLocked = !unlockedChapterIds.contains(chapter.getId());
+
         holder.title.setText(chapter.getTitle());
         holder.subtitle.setText(chapter.getSubtitle());
         holder.icon.setImageResource(chapter.getIconRes());
 
-        // 重置为默认背景色（防止复用错乱）
-        holder.card.setCardBackgroundColor(COLOR_NORMAL);
+        // 重置状态
+        holder.card.setCardBackgroundColor(isLocked ? COLOR_LOCKED : COLOR_NORMAL);
+        holder.card.setAlpha(isLocked ? 0.5f : 1.0f);
+        holder.ivLock.setVisibility(isLocked ? View.VISIBLE : View.GONE);
 
-        // 焦点变化：放大 + 高亮背景 + 阴影提升
+        // 聚焦效果（锁定的章节不显示高亮）
         holder.card.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
                 v.animate()
@@ -61,7 +69,9 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
                 holder.card.setCardElevation(20f);
-                holder.card.setCardBackgroundColor(COLOR_FOCUSED);  // 高亮
+                if (!isLocked) {
+                    holder.card.setCardBackgroundColor(COLOR_FOCUSED);
+                }
             } else {
                 v.animate()
                         .scaleX(1.0f)
@@ -70,12 +80,14 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
                 holder.card.setCardElevation(6f);
-                holder.card.setCardBackgroundColor(COLOR_NORMAL);   // 恢复
+                holder.card.setCardBackgroundColor(isLocked ? COLOR_LOCKED : COLOR_NORMAL);
             }
         });
 
         holder.card.setOnClickListener(v -> {
-            if (listener != null) listener.onChapterClick(chapter);
+            if (listener != null) {
+                listener.onChapterClick(chapter, isLocked);
+            }
         });
     }
 
@@ -87,12 +99,14 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
     static class ViewHolder extends RecyclerView.ViewHolder {
         CardView card;
         ImageView icon;
+        ImageView ivLock;
         TextView title, subtitle;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             card = itemView.findViewById(R.id.card_chapter);
             icon = itemView.findViewById(R.id.iv_chapter_icon);
+            ivLock = itemView.findViewById(R.id.iv_chapter_lock);
             title = itemView.findViewById(R.id.tv_chapter_title);
             subtitle = itemView.findViewById(R.id.tv_chapter_subtitle);
         }

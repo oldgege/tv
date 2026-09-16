@@ -13,6 +13,7 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.VideoView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 import com.wengyj.tv.R;
@@ -20,6 +21,7 @@ import com.wengyj.tv.ui.chapter.ChapterFragment;
 import com.wengyj.tv.ui.level.LevelFragment;
 import com.wengyj.tv.ui.game.GameFragment;
 import com.wengyj.tv.utils.MusicManager;
+import com.wengyj.tv.utils.ProgressManager;
 
 public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
@@ -27,8 +29,8 @@ public class MainActivity extends AppCompatActivity {
     private FrameLayout fragmentContainer;
     private TextView tvVersion;
     private Handler handler = new Handler();
+    private ProgressManager progressManager;
 
-    // 开场视频播放顺序：begin1 → begin2 → begin3 → begin4
     private int[] videoResources = {R.raw.begin1, R.raw.begin2, R.raw.begin3, R.raw.begin4};
     private int currentIndex = 0;
 
@@ -37,7 +39,6 @@ public class MainActivity extends AppCompatActivity {
 
     private Runnable pauseAtEndRunnable;
 
-    // ---------- 视频按键监听器（游戏内使用） ----------
     private OnVideoKeyListener videoKeyListener;
 
     public interface OnVideoKeyListener {
@@ -80,22 +81,16 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        // 只在 DOWN 事件时触发，避免 UP/MOVE 重复触发
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            // 等待确认阶段：触摸任意位置进入菜单
             if (isWaitingForConfirm) {
                 isWaitingForConfirm = false;
                 finishIntro();
                 return true;
             }
-
-            // 游戏内视频播放阶段：触摸跳过
             if (videoKeyListener != null) {
                 videoKeyListener.onAnyKeyPressed();
                 return true;
             }
-
-            // 开场视频播放阶段：触摸跳过全部开场
             if (isIntroPlaying) {
                 skipIntro();
                 return true;
@@ -109,6 +104,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setFullScreen();
         setContentView(R.layout.activity_main);
+
+        progressManager = new ProgressManager(this);
 
         fragmentManager = getSupportFragmentManager();
         videoView = findViewById(R.id.video_view);
@@ -238,8 +235,21 @@ public class MainActivity extends AppCompatActivity {
                 tvVersion.setVisibility(View.GONE);
             }
             fragmentContainer.setVisibility(View.VISIBLE);
-            showChapterFragment();
             handler.removeCallbacksAndMessages(null);
+
+            int lastLevelId = progressManager.getLastLevelId();
+            if (lastLevelId != -1) {
+                // 有进度：先把章节菜单作为根（同步执行），再压入游戏
+                // 这样回退栈是 [章节, 游戏]，按返回键回到章节菜单
+                fragmentManager.beginTransaction()
+                        .replace(R.id.fragment_container, new ChapterFragment())
+                        .commitNow();
+                // 再显示游戏
+                showGameFragment(lastLevelId);
+            } else {
+                // 首次启动，进入章节菜单
+                showChapterFragment();
+            }
         });
     }
 
@@ -286,10 +296,25 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (fragmentManager.getBackStackEntryCount() > 0) {
+        if (fragmentManager.getBackStackEntryCount() > 1) {
+            // 回退栈有多个 Fragment，正常 pop
             fragmentManager.popBackStack();
+        } else if (fragmentManager.getBackStackEntryCount() == 1) {
+            // 只有一个 Fragment（例如开机直接进入游戏），清空回退栈并显示章节菜单
+            fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
+            fragmentManager.beginTransaction()
+                    .replace(R.id.fragment_container, new ChapterFragment())
+                    .commit();
         } else {
-            super.onBackPressed();
+            // 回退栈为空：如果当前不是章节菜单，显示章节菜单；否则退出
+            Fragment current = fragmentManager.findFragmentById(R.id.fragment_container);
+            if (current instanceof ChapterFragment) {
+                super.onBackPressed();
+            } else {
+                fragmentManager.beginTransaction()
+                        .replace(R.id.fragment_container, new ChapterFragment())
+                        .commit();
+            }
         }
     }
 

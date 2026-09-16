@@ -14,6 +14,7 @@ public class ProgressManager {
     private static final String KEY_CURRENT_LEVEL = "current_level";
     private static final String KEY_STARS = "stars";
     private static final String KEY_BGM_ENABLED = "bgm_enabled";
+    private static final String KEY_HAS_PROGRESS = "has_progress";
 
     private SharedPreferences prefs;
 
@@ -63,7 +64,9 @@ public class ProgressManager {
         String str = prefs.getString(KEY_COMPLETED, "");
         if (!str.isEmpty()) {
             for (String id : str.split(",")) {
-                result.add(Integer.parseInt(id));
+                try {
+                    result.add(Integer.parseInt(id));
+                } catch (NumberFormatException ignored) {}
             }
         }
         return result;
@@ -84,6 +87,15 @@ public class ProgressManager {
         return getCompletedLevels().contains(levelId);
     }
 
+    // ---------- 是否已有游戏进度 ----------
+    /**
+     * 是否已经玩过（有进度记录）
+     * 用于判断启动时是否直接进入上次的关卡
+     */
+    public boolean hasProgress() {
+        return prefs.getBoolean(KEY_HAS_PROGRESS, false);
+    }
+
     // ---------- 重置所有进度（星星和关卡） ----------
     public void resetAllProgress() {
         prefs.edit()
@@ -91,6 +103,7 @@ public class ProgressManager {
                 .putInt(KEY_STARS, 20)
                 .putInt(KEY_CURRENT_CHAPTER, 1)
                 .putInt(KEY_CURRENT_LEVEL, 1)
+                .putBoolean(KEY_HAS_PROGRESS, false)
                 .apply();
     }
 
@@ -99,7 +112,21 @@ public class ProgressManager {
         prefs.edit()
                 .putInt(KEY_CURRENT_CHAPTER, chapterId)
                 .putInt(KEY_CURRENT_LEVEL, levelId)
+                .putBoolean(KEY_HAS_PROGRESS, true)
                 .apply();
+    }
+
+    /**
+     * 获取上次的关卡 ID（全局唯一）
+     * 若无进度返回 -1
+     */
+    public int getLastLevelId() {
+        if (!hasProgress()) return -1;
+        int chapter = prefs.getInt(KEY_CURRENT_CHAPTER, -1);
+        int level = prefs.getInt(KEY_CURRENT_LEVEL, -1);
+        if (chapter == -1 || level == -1) return -1;
+        // level 存储的是全局唯一ID（如 101, 201）
+        return level;
     }
 
     public int[] getCurrentProgress() {
