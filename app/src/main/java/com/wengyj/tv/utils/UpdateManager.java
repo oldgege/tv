@@ -22,6 +22,8 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import javax.net.ssl.HttpsURLConnection;
+
 /**
  * 远程版本升级管理器。
  *
@@ -29,6 +31,10 @@ import java.net.URL;
  * 若远端更新，则静默下载 APK，最后调起系统安装界面完成升级。
  * 版本信息与 APK 均托管在免费静态站点（如 GitHub Releases + jsDelivr），
  * 无需自建服务器。</p>
+ *
+ * <p>兼容性：Android 4.3 默认只启用 TLS 1.0，而 GitHub / jsDelivr 已强制
+ * TLS 1.2。本类通过 {@link TLSSocketFactory} 在每个连接上强制启用 TLS 1.2，
+ * 并手动处理 HTTP 重定向，确保每跳连接都应用该工厂。</p>
  */
 public class UpdateManager {
 
@@ -36,8 +42,7 @@ public class UpdateManager {
 
     /**
      * 远程版本信息地址（替换成你自己的地址即可）。
-     *
-     * <p>无需服务器，推荐用 jsDelivr 加速 GitHub（国内可用）：</p>
+     * 推荐用 jsDelivr 加速 GitHub：
      * https://cdn.jsdelivr.net/gh/用户名/仓库名@main/version.json
      */
     private static final String UPDATE_JSON_URL =
@@ -48,14 +53,16 @@ public class UpdateManager {
     private static final String KEY_PENDING_URL = "pending_url";
     private static final String KEY_PENDING_ETAG = "pending_etag";
 
-    private static final int CONNECT_TIMEOUT = 8000;
-    private static final int READ_TIMEOUT = 20000;
+    private static final int CONNECT_TIMEOUT = 10000;
+    private static final int READ_TIMEOUT = 30000;
     /** HTTP 206 Partial Content */
     private static final int HTTP_PARTIAL = 206;
     /** 同一进程内下载重试次数 */
     private static final int MAX_DOWNLOAD_RETRY = 3;
-    /** 重试基础间隔（毫秒），实际间隔 = 基础间隔 × 已重试次数（3s、6s） */
+    /** 重试基础间隔（毫秒），实际间隔 = 基础间隔 × 已重试次数 */
     private static final long RETRY_BASE_DELAY = 3000L;
+    /** 最大重定向跳数 */
+    private static final int MAX_REDIRECTS = 5;
 
     private final Context context;
     private final SharedPreferences prefs;
@@ -151,7 +158,7 @@ public class UpdateManager {
                     Uri.parse("package:" + context.getPackageName()));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-            Log.i(TAG, "已跳转“安装未知应用”授权页，授权后下次启动将自动安装");
+            Log.i(TAG, "已跳转安装未知应用授权页，授权后下次启动将自动安装");
         } catch (Exception e) {
             Log.w(TAG, "无法打开未知来源设置: " + e.getMessage());
         }
@@ -234,7 +241,7 @@ public class UpdateManager {
     }
 
     /**
-     * 单次下载尝试（支持断点续传）。
+     * 单次下载尝试（支持断点续传 + 手动重定向 + TLS 1.2 强制）。
      *
      * @return 下载并校验完成返回 APK；否则返回 null（保留已下载分片）
      */
@@ -245,18 +252,11 @@ public class UpdateManager {
         try {
             long downloaded = apk.exists() ? apk.length() : 0;
 
-            conn = (HttpURLConnection) new URL(apkUrl).openConnection();
-            // Android 4.x 需要显式开启 TLS1.2 + SNI，否则握手阶段就会被服务端拒绝
-            TlsCompat.apply(conn);
-            conn.setInstanceFollowRedirects(true);
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setRequestProperty("User-Agent", "TV-Updater");
-            if (downloaded > 0) {
-                // 关键：请求从断点处开始传输
-                conn.setRequestProperty("Range", "bytes=" + downloaded + "-");
+            conn = openConnectionWithRedirects(apkUrl, downloaded);
+            if (conn == null) {
+                Log.w(TAG, "无法建立连接（重定向失败或 TLS 握手失败）");
+                return null;
             }
-            conn.connect();
 
             int code = conn.getResponseCode();
             if (code != HttpURLConnection.HTTP_OK && code != HTTP_PARTIAL) {
@@ -326,6 +326,70 @@ public class UpdateManager {
         }
     }
 
+    /**
+     * 建立连接并手动跟随重定向，每跳都应用 TLS 1.2 工厂。
+     * Android 4.3 的 HttpURLConnection 自动重定向时，可能不会把
+     * SSLSocketFactory 应用到新连接，所以必须手动处理。
+     */
+    private HttpURLConnection openConnectionWithRedirects(String url, long downloaded) {
+        try {
+            String currentUrl = url;
+            int redirects = 0;
+
+            while (redirects <= MAX_REDIRECTS) {
+                HttpURLConnection conn = (HttpURLConnection) new URL(currentUrl).openConnection();
+                conn.setInstanceFollowRedirects(false);   // 关闭自动重定向
+                conn.setConnectTimeout(CONNECT_TIMEOUT);
+                conn.setReadTimeout(READ_TIMEOUT);
+                conn.setRequestProperty("User-Agent", "TV-Updater");
+
+                // ========== 关键：为每个 HTTPS 连接强制启用 TLS 1.2 ==========
+                if (conn instanceof HttpsURLConnection) {
+                    try {
+                        ((HttpsURLConnection) conn).setSSLSocketFactory(new TLSSocketFactory());
+                    } catch (Exception e) {
+                        Log.w(TAG, "设置 TLSSocketFactory 失败: " + e.getMessage());
+                    }
+                }
+                // ============================================================
+
+                if (downloaded > 0) {
+                    conn.setRequestProperty("Range", "bytes=" + downloaded + "-");
+                }
+                conn.connect();
+
+                int code = conn.getResponseCode();
+                if (code == HttpURLConnection.HTTP_MOVED_PERM      // 301
+                        || code == HttpURLConnection.HTTP_MOVED_TEMP   // 302
+                        || code == HttpURLConnection.HTTP_SEE_OTHER    // 303
+                        || code == 307                                  // 307 Temporary Redirect
+                        || code == 308) {                               // 308 Permanent Redirect
+                    String location = conn.getHeaderField("Location");
+                    conn.disconnect();
+                    if (location == null || location.isEmpty()) {
+                        Log.w(TAG, "重定向缺少 Location 头");
+                        return null;
+                    }
+                    // 处理相对路径重定向
+                    if (!location.startsWith("http://") && !location.startsWith("https://")) {
+                        URL base = new URL(currentUrl);
+                        location = new URL(base, location).toString();
+                    }
+                    Log.i(TAG, "重定向 " + code + " → " + location);
+                    currentUrl = location;
+                    redirects++;
+                    continue;
+                }
+                return conn;
+            }
+            Log.w(TAG, "重定向次数超过 " + MAX_REDIRECTS);
+            return null;
+        } catch (Exception e) {
+            Log.w(TAG, "建立连接失败: " + e.getMessage());
+            return null;
+        }
+    }
+
     /** 从响应头解析文件完整大小：优先 Content-Range，其次 Content-Length */
     private static long parseTotalSize(HttpURLConnection conn, long downloaded) {
         String range = conn.getHeaderField("Content-Range");
@@ -364,16 +428,14 @@ public class UpdateManager {
         HttpURLConnection conn = null;
         InputStream in = null;
         try {
-            conn = (HttpURLConnection) new URL(url).openConnection();
-            TlsCompat.apply(conn);
-            conn.setInstanceFollowRedirects(true);
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setRequestProperty("User-Agent", "TV-Updater");
-            conn.connect();
+            conn = openConnectionWithRedirects(url, 0);
+            if (conn == null) {
+                return null;
+            }
 
-            if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                Log.w(TAG, "获取版本信息 HTTP " + conn.getResponseCode());
+            int code = conn.getResponseCode();
+            if (code != HttpURLConnection.HTTP_OK) {
+                Log.w(TAG, "获取版本信息 HTTP " + code);
                 return null;
             }
 
