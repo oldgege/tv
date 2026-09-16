@@ -24,7 +24,9 @@ public class ChapterFragment extends Fragment {
     private RecyclerView recyclerView;
     private ChapterAdapter adapter;
     private TextView tvStars;
-    private TextView tvBgmToggle;
+    private View tvBgmToggle;
+    private TextView tvBgmIcon;
+    private View tvBack;
     private ProgressManager progressManager;
 
     @Nullable
@@ -35,6 +37,8 @@ public class ChapterFragment extends Fragment {
         recyclerView = view.findViewById(R.id.recycler_chapters);
         tvStars = view.findViewById(R.id.tv_stars_chapter);
         tvBgmToggle = view.findViewById(R.id.tv_bgm_toggle);
+        tvBgmIcon = view.findViewById(R.id.tv_bgm_icon);
+        tvBack = view.findViewById(R.id.tv_back);
 
         progressManager = new ProgressManager(getContext());
 
@@ -56,6 +60,13 @@ public class ChapterFragment extends Fragment {
             updateBgmIcon(newState);
         });
 
+        // 退出按钮
+        tvBack.setOnClickListener(v -> {
+            if (getActivity() != null) {
+                getActivity().finish();
+            }
+        });
+
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         adapter = new ChapterAdapter(chapters, chapter -> {
             MainActivity activity = (MainActivity) getActivity();
@@ -65,7 +76,7 @@ public class ChapterFragment extends Fragment {
         });
         recyclerView.setAdapter(adapter);
 
-        // 请求焦点，确保遥控器可以操作（聚焦到 BGM 开关或 RecyclerView）
+        // 请求焦点，确保遥控器可以操作
         recyclerView.post(() -> recyclerView.requestFocus());
 
         return view;
@@ -79,8 +90,8 @@ public class ChapterFragment extends Fragment {
     }
 
     private void updateBgmIcon(boolean enabled) {
-        if (tvBgmToggle != null) {
-            tvBgmToggle.setText(enabled ? "🔊" : "🔇");
+        if (tvBgmIcon != null) {
+            tvBgmIcon.setText(enabled ? "🔊" : "🔇");
         }
     }
 

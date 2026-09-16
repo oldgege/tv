@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -45,11 +46,16 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private static final int MAX_SET_LANGUAGE_RETRY = 5;
     private static final long SET_LANGUAGE_RETRY_DELAY = 400;
 
+    private static final long FADE_OUT_DURATION = 150;
+    private static final long FADE_IN_DURATION = 250;
+
     private int levelId;
     private Level currentLevel;
     private TextView tvQuestion, tvHint;
     private TextView tvStars;
+    private View tvBack;                          // 改为 View，布局中是 LinearLayout
     private LinearLayout optionsContainer;
+    private LinearLayout contentContainer;
     private VideoView videoSuccess;
     private VideoView videoError;
     private ProgressManager progressManager;
@@ -118,34 +124,32 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         tvQuestion = view.findViewById(R.id.tv_question);
         tvHint = view.findViewById(R.id.tv_hint);
         tvStars = view.findViewById(R.id.tv_stars);
+        tvBack = view.findViewById(R.id.tv_back);       // View 类型，安全
+        contentContainer = view.findViewById(R.id.content_container);
         optionsContainer = view.findViewById(R.id.options_container);
         videoSuccess = view.findViewById(R.id.video_success);
         videoError = view.findViewById(R.id.video_error);
+
+        if (tvBack != null) {
+            tvBack.setOnClickListener(v -> {
+                if (getActivity() != null) {
+                    getActivity().onBackPressed();
+                }
+            });
+        }
 
         updateStarsDisplay();
 
         optionsContainer.setOrientation(LinearLayout.HORIZONTAL);
         optionsContainer.setGravity(android.view.Gravity.CENTER);
 
-        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
-        for (Chapter chapter : chapters) {
-            for (Level level : chapter.getLevels()) {
-                if (level.getId() == levelId) {
-                    currentLevel = level;
-                    break;
-                }
-            }
-            if (currentLevel != null) break;
-        }
-
-        if (currentLevel == null) {
+        if (!loadLevelById(levelId)) {
             Toast.makeText(getContext(), "关卡数据错误", Toast.LENGTH_SHORT).show();
             return view;
         }
 
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
-
         if (q.getType() == Question.Type.LISTEN_SELECT) {
             tvHint.setText("🔊 仔细听，选出正确的字");
         } else {
@@ -158,6 +162,19 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
         buildOptions();
         return view;
+    }
+
+    private boolean loadLevelById(int id) {
+        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        for (Chapter chapter : chapters) {
+            for (Level level : chapter.getLevels()) {
+                if (level.getId() == id) {
+                    currentLevel = level;
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
@@ -234,9 +251,23 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             });
 
             final int index = i;
+
             root.setOnClickListener(v -> {
                 if (isAnimating) return;
                 checkAnswer(index, root);
+            });
+
+            root.setOnTouchListener((v, event) -> {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (isAnimating) return true;
+                        checkAnswer(index, root);
+                        return true;
+                    default:
+                        return true;
+                }
             });
 
             root.setFocusable(true);
@@ -249,6 +280,44 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 optionsContainer.getChildAt(0).requestFocus();
             }
         });
+    }
+
+    // ---------- 过渡动画 ----------
+    private void fadeOutContent(final Runnable onComplete) {
+        if (contentContainer == null) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        contentContainer.animate().cancel();
+        contentContainer.animate()
+                .alpha(0f)
+                .scaleX(1.05f)
+                .scaleY(1.05f)
+                .setDuration(FADE_OUT_DURATION)
+                .withEndAction(() -> {
+                    if (onComplete != null) onComplete.run();
+                })
+                .start();
+    }
+
+    private void fadeInContent(final Runnable onComplete) {
+        if (contentContainer == null) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        contentContainer.animate().cancel();
+        contentContainer.setAlpha(0f);
+        contentContainer.setScaleX(0.95f);
+        contentContainer.setScaleY(0.95f);
+        contentContainer.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(FADE_IN_DURATION)
+                .withEndAction(() -> {
+                    if (onComplete != null) onComplete.run();
+                })
+                .start();
     }
 
     // ---------- TTS 回调 ----------
@@ -313,9 +382,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    /**
-     * TTS 不可用时只弹 Toast 提示，不跳转设置页
-     */
     private void showTtsErrorToast() {
         if (hasShownTtsError) return;
         hasShownTtsError = true;
@@ -347,6 +413,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     @Override
     public void onDestroy() {
+        if (contentContainer != null) {
+            contentContainer.animate().cancel();
+        }
         releaseTts();
         if (videoSuccess != null) {
             videoSuccess.stopPlayback();
@@ -455,7 +524,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 通用视频播放方法 ----------
+    // ---------- 视频播放 ----------
     private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
         if (rawResId == 0) {
             if (onComplete != null) onComplete.run();
@@ -490,6 +559,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
         MusicManager.getInstance(getContext()).lowerVolume();
 
+        fadeOutContent(() -> {
+            if (completed[0]) return;
+            showVideo(videoView, rawResId, safeComplete);
+        });
+    }
+
+    private void showVideo(VideoView videoView, int rawResId, Runnable safeComplete) {
         videoView.setVisibility(View.VISIBLE);
         String uriPath = "android.resource://" + getContext().getPackageName() + "/" + rawResId;
         videoView.setVideoURI(Uri.parse(uriPath));
@@ -539,26 +615,56 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 int chapterId = getCurrentChapterId();
                 int storyResId = getStoryVideoResId(chapterId);
                 if (storyResId != 0) {
-                    playVideoAndWait(videoSuccess, storyResId, this::goToNextLevelOrChapter);
+                    playVideoAndWait(videoSuccess, storyResId, this::finishCorrectSequence);
                     return;
                 }
             }
-            goToNextLevelOrChapter();
+            finishCorrectSequence();
         });
     }
 
-    private void goToNextLevelOrChapter() {
+    private void finishCorrectSequence() {
         int nextId = getNextLevelId();
         MainActivity activity = (MainActivity) getActivity();
-        if (activity != null) {
-            if (nextId != -1) {
-                activity.navigateToGame(nextId);
-            } else {
+
+        if (nextId != -1) {
+            switchToNextLevel(nextId);
+        } else {
+            isAnimating = false;
+            if (activity != null) {
                 activity.navigateToChapter();
                 speakText("恭喜你完成所有关卡！");
             }
         }
-        isAnimating = false;
+    }
+
+    private void switchToNextLevel(int nextLevelId) {
+        levelId = nextLevelId;
+
+        if (!loadLevelById(levelId)) {
+            isAnimating = false;
+            MainActivity activity = (MainActivity) getActivity();
+            if (activity != null) {
+                activity.navigateToChapter();
+            }
+            return;
+        }
+
+        Question q = currentLevel.getQuestion();
+        tvQuestion.setText(q.getPrompt());
+        if (q.getType() == Question.Type.LISTEN_SELECT) {
+            tvHint.setText("🔊 仔细听，选出正确的字");
+        } else {
+            tvHint.setText(q.getHint() != null ? q.getHint() : "");
+        }
+
+        buildOptions();
+
+        fadeInContent(() -> {
+            isAnimating = false;
+        });
+
+        speakCurrentQuestion();
     }
 
     // ---------- 答题 ----------
@@ -567,26 +673,31 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (selectedIndex == q.getCorrectAnswerIndex()) {
             onCorrectAnswer();
         } else {
-            progressManager.deductStars(2);
-            updateStarsDisplay();
-            int remainingStars = progressManager.getStars();
+            handleWrongAnswer();
+        }
+    }
 
-            if (remainingStars <= 0) {
-                isAnimating = true;
-                resetAllProgressAndGoHome();
-                return;
-            }
+    private void handleWrongAnswer() {
+        progressManager.deductStars(2);
+        updateStarsDisplay();
+        int remainingStars = progressManager.getStars();
 
+        if (remainingStars <= 0) {
             isAnimating = true;
+            resetAllProgressAndGoHome();
+            return;
+        }
 
-            int errorResId = getRandomErrorVideoResId();
+        isAnimating = true;
+        int errorResId = getRandomErrorVideoResId();
 
-            playVideoAndWait(videoError, errorResId, () -> {
-                speakCurrentQuestion();
-                reshuffleOptions();
+        playVideoAndWait(videoError, errorResId, () -> {
+            reshuffleOptions();
+            fadeInContent(() -> {
                 isAnimating = false;
             });
-        }
+            speakCurrentQuestion();
+        });
     }
 
     private void reshuffleOptions() {

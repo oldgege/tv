@@ -59,7 +59,7 @@ android {
             // 获取当前日期：年月日
             def date = new Date().format("yyyyMMdd")
             // 自定义文件名：versionCode_versionName_年月日.apk
-            outputFileName = "${versionCode}_${versionName}_${date}.apk"
+            outputFileName = "V${versionCode}_${date}.apk"
         }
     }
     // =========================================

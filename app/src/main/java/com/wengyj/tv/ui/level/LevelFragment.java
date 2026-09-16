@@ -38,6 +38,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private ProgressManager progressManager;
     private List<Level> levels;
     private TextView tvStars;
+    private View tvBack;          // 改为 View 类型，因为布局中是 LinearLayout
 
     private TextToSpeech tts;
     private String currentEngine = null;
@@ -98,6 +99,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         View view = inflater.inflate(R.layout.fragment_level, container, false);
         recyclerView = view.findViewById(R.id.recycler_levels);
         tvStars = view.findViewById(R.id.tv_stars);
+        tvBack = view.findViewById(R.id.tv_back);   // View 类型，不会 ClassCastException
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 4));
         recyclerView.setHasFixedSize(true);
@@ -105,6 +107,15 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         recyclerView.setFocusableInTouchMode(true);
 
         updateStarsDisplay();
+
+        // 返回按钮点击
+        if (tvBack != null) {
+            tvBack.setOnClickListener(v -> {
+                if (getActivity() != null) {
+                    getActivity().onBackPressed();
+                }
+            });
+        }
 
         List<Chapter> all = ChapterDataSource.getAllChapters(getContext());
         Chapter chapter = null;
@@ -241,9 +252,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         }
     }
 
-    /**
-     * TTS 不可用时只弹 Toast 提示，不跳转设置页
-     */
     private void showTtsErrorToast() {
         if (hasShownTtsError) return;
         hasShownTtsError = true;

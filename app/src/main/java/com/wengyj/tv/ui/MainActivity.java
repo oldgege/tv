@@ -80,14 +80,26 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        if (isWaitingForConfirm && event.getAction() == MotionEvent.ACTION_DOWN) {
-            isWaitingForConfirm = false;
-            finishIntro();
-            return true;
-        }
-        if (isIntroPlaying && event.getAction() == MotionEvent.ACTION_DOWN) {
-            skipIntro();
-            return true;
+        // 只在 DOWN 事件时触发，避免 UP/MOVE 重复触发
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            // 等待确认阶段：触摸任意位置进入菜单
+            if (isWaitingForConfirm) {
+                isWaitingForConfirm = false;
+                finishIntro();
+                return true;
+            }
+
+            // 游戏内视频播放阶段：触摸跳过
+            if (videoKeyListener != null) {
+                videoKeyListener.onAnyKeyPressed();
+                return true;
+            }
+
+            // 开场视频播放阶段：触摸跳过全部开场
+            if (isIntroPlaying) {
+                skipIntro();
+                return true;
+            }
         }
         return super.dispatchTouchEvent(event);
     }
@@ -103,30 +115,24 @@ public class MainActivity extends AppCompatActivity {
         fragmentContainer = findViewById(R.id.fragment_container);
         tvVersion = findViewById(R.id.tv_version);
 
-        // 显示版本号
         tvVersion.setText("v" + getVersionName());
         tvVersion.setVisibility(View.VISIBLE);
 
         playNextVideo();
     }
 
-    // ---------- 生命周期：处理背景音乐 ----------
     @Override
     protected void onResume() {
         super.onResume();
-        // 回到前台：恢复背景音乐
         MusicManager.getInstance(this).start();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // 退到后台：暂停背景音乐
         MusicManager.getInstance(this).pause();
     }
-    // -----------------------------------------
 
-    // 获取当前应用的版本号
     private String getVersionName() {
         try {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
