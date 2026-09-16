@@ -1,7 +1,7 @@
 {
   "versionCode": 6,
   "versionName": "6",
-  "apkUrl": "https://github.com/oldgege/tv/releases/download/v6/6_6_20260915.apk",
+  "apkUrl": "https://ghproxy.net/https://github.com/oldgege/tv/releases/download/v6/6_6_20260915.apk",
   "forceUpdate": false,
   "updateLog": "1. 新增远程升级"
 }
