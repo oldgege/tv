@@ -73,7 +73,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private List<Integer> errorVideoList = null;
     private final Random random = new Random();
 
-    // 记录第一个选项的 ID，用于设置焦点路径
     private int firstOptionViewId = View.NO_ID;
 
     public static GameFragment newInstance(int levelId) {
@@ -135,7 +134,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         videoSuccess = view.findViewById(R.id.video_success);
         videoError = view.findViewById(R.id.video_error);
 
-        // 返回按钮
         if (tvBack != null) {
             tvBack.setOnClickListener(v -> {
                 if (getActivity() != null) {
@@ -144,7 +142,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             });
         }
 
-        // 读题按钮
         if (btnReplay != null) {
             btnReplay.setOnClickListener(v -> {
                 if (isAnimating) return;
@@ -165,7 +162,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
         if (q.getType() == Question.Type.LISTEN_SELECT) {
-            tvHint.setText("🔊 仔细听，选出正确的字");
+            tvHint.setText("🔊 仔细听，选出正确的字（按1-4可听选项）");
         } else {
             tvHint.setText(q.getHint() != null ? q.getHint() : "");
         }
@@ -194,6 +191,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     @Override
     public void onResume() {
         super.onResume();
+
+        // 注册数字键监听
+        MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) {
+            activity.setNumberKeyListener(this::handleNumberKey);
+        }
+
         if (optionsContainer != null) {
             optionsContainer.post(() -> {
                 if (optionsContainer.getChildCount() > 0) {
@@ -204,6 +208,51 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (tts == null && !isInitializing) {
             hasShownTtsError = false;
             initTts(null);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // 清理数字键监听
+        MainActivity activity = (MainActivity) getActivity();
+        if (activity != null) {
+            activity.clearNumberKeyListener();
+        }
+    }
+
+    /**
+     * 处理数字键 1~4：播报对应选项的内容
+     */
+    private boolean handleNumberKey(int number) {
+        // 动画/视频播放期间不响应
+        if (isAnimating) return true;
+        if (currentLevel == null) return true;
+
+        List<String> options = currentLevel.getQuestion().getOptions();
+        int index = number - 1;
+        if (index < 0 || index >= options.size()) return true;
+
+        speakOption(index);
+        return true;
+    }
+
+    /**
+     * 播报指定索引的选项
+     */
+    private void speakOption(int index) {
+        if (currentLevel == null) return;
+        List<String> options = currentLevel.getQuestion().getOptions();
+        if (index < 0 || index >= options.size()) return;
+
+        if (tts != null && isTtsReady) {
+            String text = (index + 1) + "号，" + options.get(index);
+            speakText(text);
+        } else {
+            if (!isAdded() || getContext() == null) return;
+            try {
+                Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
+            } catch (Exception ignored) {}
         }
     }
 
@@ -238,20 +287,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             text.setText(options.get(i));
             root.setBackgroundResource(R.drawable.bg_monster_selector);
 
-            // ============ 为选项设置唯一 ID，用于自定义焦点路径 ============
             int optionViewId = View.generateViewId();
             root.setId(optionViewId);
 
             if (i == 0) {
                 firstOptionViewId = optionViewId;
-                // 最左边的选项按"左"→ 读题按钮
                 root.setNextFocusLeftId(R.id.btn_replay);
-            } else {
-                // 其他选项的左边指向左侧邻居
-                // 通过 View.NO_ID 让系统自动寻找，或者手动指定上一个选项的 ID
-                // 这里用后处理方式在循环结束后统一设置
             }
-            // ==========================================================
 
             root.setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus) {
@@ -306,20 +348,15 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             optionsContainer.addView(root);
         }
 
-        // ============ 设置读题按钮和返回按钮的焦点路径 ============
         if (btnReplay != null) {
-            // 读题按钮按"左" → 返回按钮
             btnReplay.setNextFocusLeftId(R.id.tv_back);
-            // 读题按钮按"右" → 第一个选项
             if (firstOptionViewId != View.NO_ID) {
                 btnReplay.setNextFocusRightId(firstOptionViewId);
             }
         }
         if (tvBack != null) {
-            // 返回按钮按"右" → 读题按钮
             tvBack.setNextFocusRightId(R.id.btn_replay);
         }
-        // ==========================================================
 
         optionsContainer.post(() -> {
             if (optionsContainer.getChildCount() > 0) {
@@ -480,6 +517,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
             activity.clearVideoKeyListener();
+            activity.clearNumberKeyListener();
         }
         MusicManager.getInstance(getContext()).restoreVolume();
         handler.removeCallbacksAndMessages(null);
@@ -515,7 +553,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return list.get(random.nextInt(list.size()));
     }
 
-    // ---------- 判断当前关是否为本章最后一关 ----------
     private boolean isLastLevelOfChapter() {
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         for (Chapter chapter : chapters) {
@@ -578,7 +615,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 视频播放 ----------
     private void playVideoAndWait(VideoView videoView, int rawResId, final Runnable onComplete) {
         if (rawResId == 0) {
             if (onComplete != null) onComplete.run();
@@ -637,7 +673,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         });
     }
 
-    // ---------- 星星耗尽 ----------
     private void resetAllProgressAndGoHome() {
         int resId = getResources().getIdentifier("game_over", "raw", getContext().getPackageName());
         if (resId != 0) {
@@ -657,7 +692,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
     }
 
-    // ---------- 答对后 ----------
     private void onCorrectAnswer() {
         progressManager.addStar();
         progressManager.saveCompletedLevel(currentLevel.getId());
@@ -709,7 +743,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
         if (q.getType() == Question.Type.LISTEN_SELECT) {
-            tvHint.setText("🔊 仔细听，选出正确的字");
+            tvHint.setText("🔊 仔细听，选出正确的字（按1-4可听选项）");
         } else {
             tvHint.setText(q.getHint() != null ? q.getHint() : "");
         }
@@ -723,7 +757,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         speakCurrentQuestion();
     }
 
-    // ---------- 答题 ----------
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
         Question q = currentLevel.getQuestion();
         if (selectedIndex == q.getCorrectAnswerIndex()) {

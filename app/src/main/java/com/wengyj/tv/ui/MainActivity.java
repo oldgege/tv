@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
 
     private Runnable pauseAtEndRunnable;
 
+    // ---------- 视频按键监听器（游戏内使用） ----------
     private OnVideoKeyListener videoKeyListener;
 
     public interface OnVideoKeyListener {
@@ -53,11 +54,63 @@ public class MainActivity extends AppCompatActivity {
         this.videoKeyListener = null;
     }
 
+    // ---------- 数字键监听器（游戏内使用） ----------
+    private OnNumberKeyListener numberKeyListener;
+
+    public interface OnNumberKeyListener {
+        /**
+         * @param number 按下的数字键（1~4）
+         * @return true 表示已消费该按键，false 表示不拦截
+         */
+        boolean onNumberKeyPressed(int number);
+    }
+
+    public void setNumberKeyListener(OnNumberKeyListener listener) {
+        this.numberKeyListener = listener;
+    }
+
+    public void clearNumberKeyListener() {
+        this.numberKeyListener = null;
+    }
+
+    /**
+     * 将 KeyEvent 的 keyCode 转为数字（1~4），不是数字键返回 -1
+     */
+    private int keyCodeToNumber(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_1:
+            case KeyEvent.KEYCODE_NUMPAD_1:
+                return 1;
+            case KeyEvent.KEYCODE_2:
+            case KeyEvent.KEYCODE_NUMPAD_2:
+                return 2;
+            case KeyEvent.KEYCODE_3:
+            case KeyEvent.KEYCODE_NUMPAD_3:
+                return 3;
+            case KeyEvent.KEYCODE_4:
+            case KeyEvent.KEYCODE_NUMPAD_4:
+                return 4;
+            default:
+                return -1;
+        }
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            // 返回键不拦截
             if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
                 return super.dispatchKeyEvent(event);
+            }
+
+            // 数字键拦截（用于播报选项）
+            if (numberKeyListener != null) {
+                int num = keyCodeToNumber(event.getKeyCode());
+                if (num > 0) {
+                    if (numberKeyListener.onNumberKeyPressed(num)) {
+                        return true;
+                    }
+                }
             }
 
             if (isWaitingForConfirm) {
@@ -239,15 +292,11 @@ public class MainActivity extends AppCompatActivity {
 
             int lastLevelId = progressManager.getLastLevelId();
             if (lastLevelId != -1) {
-                // 有进度：先把章节菜单作为根（同步执行），再压入游戏
-                // 这样回退栈是 [章节, 游戏]，按返回键回到章节菜单
                 fragmentManager.beginTransaction()
                         .replace(R.id.fragment_container, new ChapterFragment())
                         .commitNow();
-                // 再显示游戏
                 showGameFragment(lastLevelId);
             } else {
-                // 首次启动，进入章节菜单
                 showChapterFragment();
             }
         });
@@ -259,7 +308,6 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
-    // ---------- 导航方法 ----------
     public void showLevelFragment(int chapterId) {
         LevelFragment fragment = LevelFragment.newInstance(chapterId);
         fragmentManager.beginTransaction()
@@ -297,16 +345,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         if (fragmentManager.getBackStackEntryCount() > 1) {
-            // 回退栈有多个 Fragment，正常 pop
             fragmentManager.popBackStack();
         } else if (fragmentManager.getBackStackEntryCount() == 1) {
-            // 只有一个 Fragment（例如开机直接进入游戏），清空回退栈并显示章节菜单
             fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
             fragmentManager.beginTransaction()
                     .replace(R.id.fragment_container, new ChapterFragment())
                     .commit();
         } else {
-            // 回退栈为空：如果当前不是章节菜单，显示章节菜单；否则退出
             Fragment current = fragmentManager.findFragmentById(R.id.fragment_container);
             if (current instanceof ChapterFragment) {
                 super.onBackPressed();
