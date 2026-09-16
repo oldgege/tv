@@ -53,7 +53,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private Level currentLevel;
     private TextView tvQuestion, tvHint;
     private TextView tvStars;
-    private View tvBack;                          // 改为 View，布局中是 LinearLayout
+    private View tvBack;
+    private View btnReplay;
     private LinearLayout optionsContainer;
     private LinearLayout contentContainer;
     private VideoView videoSuccess;
@@ -71,6 +72,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private List<Integer> errorVideoList = null;
     private final Random random = new Random();
+
+    // 记录第一个选项的 ID，用于设置焦点路径
+    private int firstOptionViewId = View.NO_ID;
 
     public static GameFragment newInstance(int levelId) {
         GameFragment fragment = new GameFragment();
@@ -124,17 +128,27 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         tvQuestion = view.findViewById(R.id.tv_question);
         tvHint = view.findViewById(R.id.tv_hint);
         tvStars = view.findViewById(R.id.tv_stars);
-        tvBack = view.findViewById(R.id.tv_back);       // View 类型，安全
+        tvBack = view.findViewById(R.id.tv_back);
+        btnReplay = view.findViewById(R.id.btn_replay);
         contentContainer = view.findViewById(R.id.content_container);
         optionsContainer = view.findViewById(R.id.options_container);
         videoSuccess = view.findViewById(R.id.video_success);
         videoError = view.findViewById(R.id.video_error);
 
+        // 返回按钮
         if (tvBack != null) {
             tvBack.setOnClickListener(v -> {
                 if (getActivity() != null) {
                     getActivity().onBackPressed();
                 }
+            });
+        }
+
+        // 读题按钮
+        if (btnReplay != null) {
+            btnReplay.setOnClickListener(v -> {
+                if (isAnimating) return;
+                speakCurrentQuestion();
             });
         }
 
@@ -212,6 +226,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 R.drawable.monster_body_4
         };
 
+        firstOptionViewId = View.NO_ID;
+
         for (int i = 0; i < options.size(); i++) {
             View item = LayoutInflater.from(getContext()).inflate(R.layout.item_monster_option, optionsContainer, false);
             ImageView body = item.findViewById(R.id.iv_monster_body);
@@ -221,6 +237,21 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             body.setImageResource(monsterColors[i % monsterColors.length]);
             text.setText(options.get(i));
             root.setBackgroundResource(R.drawable.bg_monster_selector);
+
+            // ============ 为选项设置唯一 ID，用于自定义焦点路径 ============
+            int optionViewId = View.generateViewId();
+            root.setId(optionViewId);
+
+            if (i == 0) {
+                firstOptionViewId = optionViewId;
+                // 最左边的选项按"左"→ 读题按钮
+                root.setNextFocusLeftId(R.id.btn_replay);
+            } else {
+                // 其他选项的左边指向左侧邻居
+                // 通过 View.NO_ID 让系统自动寻找，或者手动指定上一个选项的 ID
+                // 这里用后处理方式在循环结束后统一设置
+            }
+            // ==========================================================
 
             root.setOnFocusChangeListener((v, hasFocus) -> {
                 if (hasFocus) {
@@ -274,6 +305,21 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             root.setFocusableInTouchMode(true);
             optionsContainer.addView(root);
         }
+
+        // ============ 设置读题按钮和返回按钮的焦点路径 ============
+        if (btnReplay != null) {
+            // 读题按钮按"左" → 返回按钮
+            btnReplay.setNextFocusLeftId(R.id.tv_back);
+            // 读题按钮按"右" → 第一个选项
+            if (firstOptionViewId != View.NO_ID) {
+                btnReplay.setNextFocusRightId(firstOptionViewId);
+            }
+        }
+        if (tvBack != null) {
+            // 返回按钮按"右" → 读题按钮
+            tvBack.setNextFocusRightId(R.id.btn_replay);
+        }
+        // ==========================================================
 
         optionsContainer.post(() -> {
             if (optionsContainer.getChildCount() > 0) {
@@ -394,12 +440,20 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private void speakCurrentQuestion() {
         if (currentLevel == null) return;
-        Question q = currentLevel.getQuestion();
-        if (q.getType() == Question.Type.LISTEN_SELECT
-                && q.getAudioText() != null && !q.getAudioText().isEmpty()) {
-            speakText(q.getAudioText() + "，" + q.getAudioText());
+
+        if (tts != null && isTtsReady) {
+            Question q = currentLevel.getQuestion();
+            if (q.getType() == Question.Type.LISTEN_SELECT
+                    && q.getAudioText() != null && !q.getAudioText().isEmpty()) {
+                speakText(q.getAudioText() + "，" + q.getAudioText());
+            } else {
+                speakText(q.getPrompt());
+            }
         } else {
-            speakText(q.getPrompt());
+            if (!isAdded() || getContext() == null) return;
+            try {
+                Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
+            } catch (Exception ignored) {}
         }
     }
 
@@ -649,6 +703,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             }
             return;
         }
+
+        progressManager.saveCurrentProgress(0, levelId);
 
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
