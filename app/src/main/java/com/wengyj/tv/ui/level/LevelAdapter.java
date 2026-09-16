@@ -20,7 +20,6 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
     private List<Level> levels;
     private OnLevelClickListener listener;
 
-    // 默认背景色 & 焦点背景色（亮蓝色）
     private static final int COLOR_NORMAL = Color.parseColor("#444444");
     private static final int COLOR_FOCUSED = Color.parseColor("#03A9F4");
 
@@ -31,6 +30,11 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
     public LevelAdapter(List<Level> levels, OnLevelClickListener listener) {
         this.levels = levels;
         this.listener = listener;
+    }
+
+    /** 数据无变化时（仅解锁/完成状态变化）调用，刷新全部可见项 */
+    public void refreshAll() {
+        notifyDataSetChanged();
     }
 
     @NonNull
@@ -60,10 +64,8 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
             }
         }
 
-        // 重置为默认背景色（防止复用错乱）
         holder.card.setCardBackgroundColor(COLOR_NORMAL);
 
-        // 焦点变化：放大 + 高亮背景 + 阴影提升
         holder.card.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
                 v.animate()
@@ -73,7 +75,7 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
                 holder.card.setCardElevation(16f);
-                holder.card.setCardBackgroundColor(COLOR_FOCUSED);  // 高亮
+                holder.card.setCardBackgroundColor(COLOR_FOCUSED);
             } else {
                 v.animate()
                         .scaleX(1.0f)
@@ -82,7 +84,7 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
                 holder.card.setCardElevation(4f);
-                holder.card.setCardBackgroundColor(COLOR_NORMAL);   // 恢复
+                holder.card.setCardBackgroundColor(COLOR_NORMAL);
             }
         });
 

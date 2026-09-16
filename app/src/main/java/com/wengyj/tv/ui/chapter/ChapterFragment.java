@@ -30,6 +30,7 @@ public class ChapterFragment extends Fragment {
     private int gradeId = 1;
     private RecyclerView recyclerView;
     private ChapterAdapter adapter;
+    private List<Chapter> chapters;
     private TextView tvStars;
     private View tvBgmToggle;
     private TextView tvBgmIcon;
@@ -80,15 +81,14 @@ public class ChapterFragment extends Fragment {
             updateBgmIcon(newState);
         });
 
-        // 返回按钮 → 回到年级选择
         tvBack.setOnClickListener(v -> {
             if (getActivity() != null) {
                 getActivity().onBackPressed();
             }
         });
 
-        // 加载该年级的章节
-        List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(gradeId);
+        // ========== 只加载一次数据（缓存已生效） ==========
+        chapters = ChapterDataSource.getChaptersByGrade(gradeId);
         Set<Integer> unlockedChapterIds = computeUnlockedChapters(chapters);
 
         adapter = new ChapterAdapter(chapters, unlockedChapterIds, (chapter, isLocked) -> {
@@ -152,22 +152,12 @@ public class ChapterFragment extends Fragment {
         MusicManager.getInstance(getContext()).restoreVolume();
         MusicManager.getInstance(getContext()).start();
 
-        // 每次返回时刷新解锁状态
-        if (adapter != null && recyclerView != null) {
-            List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(gradeId);
+        // ========== 关键修复：只刷新解锁状态，不重建 Adapter ==========
+        if (adapter != null && chapters != null) {
             Set<Integer> unlockedChapterIds = computeUnlockedChapters(chapters);
-            adapter = new ChapterAdapter(chapters, unlockedChapterIds, (chapter, isLocked) -> {
-                if (isLocked) {
-                    Toast.makeText(getContext(), "🔒 请先完成上一章", Toast.LENGTH_SHORT).show();
-                } else {
-                    MainActivity activity = (MainActivity) getActivity();
-                    if (activity != null) {
-                        activity.showLevelFragment(chapter.getId());
-                    }
-                }
-            });
-            recyclerView.setAdapter(adapter);
+            adapter.updateUnlockedChapters(unlockedChapterIds);
         }
+        // ==========================================================
 
         if (recyclerView != null) {
             recyclerView.post(() -> recyclerView.requestFocus());

@@ -19,7 +19,7 @@ import java.util.Set;
 
 public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHolder> {
     private List<Chapter> chapters;
-    private Set<Integer> unlockedChapterIds;   // 已解锁的章节 ID 集合
+    private Set<Integer> unlockedChapterIds;
     private OnChapterClickListener listener;
 
     private static final int COLOR_NORMAL = Color.parseColor("#333333");
@@ -35,6 +35,12 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
         this.chapters = chapters;
         this.unlockedChapterIds = unlockedChapterIds;
         this.listener = listener;
+    }
+
+    /** 更新解锁状态并刷新 */
+    public void updateUnlockedChapters(Set<Integer> unlockedChapterIds) {
+        this.unlockedChapterIds = unlockedChapterIds;
+        notifyDataSetChanged();
     }
 
     @NonNull
@@ -54,12 +60,10 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
         holder.subtitle.setText(chapter.getSubtitle());
         holder.icon.setImageResource(chapter.getIconRes());
 
-        // 重置状态
         holder.card.setCardBackgroundColor(isLocked ? COLOR_LOCKED : COLOR_NORMAL);
         holder.card.setAlpha(isLocked ? 0.5f : 1.0f);
         holder.ivLock.setVisibility(isLocked ? View.VISIBLE : View.GONE);
 
-        // 聚焦效果（锁定的章节不显示高亮）
         holder.card.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
                 v.animate()

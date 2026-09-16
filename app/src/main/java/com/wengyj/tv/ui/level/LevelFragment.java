@@ -116,23 +116,11 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             });
         }
 
-        // ========== 关键：遍历两个年级查找章节 ==========
         Chapter chapter = findChapterById(chapterId);
-        // ================================================
 
         if (chapter != null) {
             levels = chapter.getLevels();
-            for (int i = 0; i < levels.size(); i++) {
-                Level level = levels.get(i);
-                if (i == 0) {
-                    level.setLocked(false);
-                } else {
-                    Level prevLevel = levels.get(i - 1);
-                    boolean prevCompleted = progressManager.isLevelCompleted(prevLevel.getId());
-                    level.setLocked(!prevCompleted);
-                }
-                level.setCompleted(progressManager.isLevelCompleted(level.getId()));
-            }
+            refreshLevelStates();
 
             adapter = new LevelAdapter(levels, new LevelAdapter.OnLevelClickListener() {
                 @Override
@@ -158,22 +146,32 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         return view;
     }
 
-    /**
-     * 在所有年级中查找指定 chapterId 的章节
-     */
     private Chapter findChapterById(int chapterId) {
-        // 先查一年级上
         List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(1);
         for (Chapter c : chapters) {
             if (c.getId() == chapterId) return c;
         }
-        // 再查一年级下
         chapters = ChapterDataSource.getChaptersByGrade(2);
         for (Chapter c : chapters) {
             if (c.getId() == chapterId) return c;
         }
-        // 其他年级可以继续加
         return null;
+    }
+
+    /** 重新计算每个关卡的锁定/完成状态（直接修改 Level 对象）*/
+    private void refreshLevelStates() {
+        if (levels == null) return;
+        for (int i = 0; i < levels.size(); i++) {
+            Level level = levels.get(i);
+            if (i == 0) {
+                level.setLocked(false);
+            } else {
+                Level prevLevel = levels.get(i - 1);
+                boolean prevCompleted = progressManager.isLevelCompleted(prevLevel.getId());
+                level.setLocked(!prevCompleted);
+            }
+            level.setCompleted(progressManager.isLevelCompleted(level.getId()));
+        }
     }
 
     private void updateStarsDisplay() {
@@ -186,20 +184,14 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     public void onResume() {
         super.onResume();
         updateStarsDisplay();
+
+        // ========== 关键修复：只刷新状态，不重建 Adapter ==========
         if (adapter != null && levels != null) {
-            for (int i = 0; i < levels.size(); i++) {
-                Level level = levels.get(i);
-                if (i == 0) {
-                    level.setLocked(false);
-                } else {
-                    Level prevLevel = levels.get(i - 1);
-                    boolean prevCompleted = progressManager.isLevelCompleted(prevLevel.getId());
-                    level.setLocked(!prevCompleted);
-                }
-                level.setCompleted(progressManager.isLevelCompleted(level.getId()));
-            }
-            adapter.notifyDataSetChanged();
+            refreshLevelStates();
+            adapter.refreshAll();
         }
+        // ==========================================================
+
         if (recyclerView != null) {
             recyclerView.post(() -> recyclerView.requestFocus());
         }

@@ -38,6 +38,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean isIntroPlaying = false;
     private boolean isWaitingForConfirm = false;
 
+    // 是否需要在 onResume 后补执行 finishIntro
+    private boolean pendingFinishIntro = false;
+
     private Runnable pauseAtEndRunnable;
 
     private OnVideoKeyListener videoKeyListener;
@@ -158,6 +161,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         MusicManager.getInstance(this).start();
+
+        // 处理延迟的 finishIntro（状态已恢复）
+        if (pendingFinishIntro) {
+            pendingFinishIntro = false;
+            doFinishIntro();
+        }
     }
 
     @Override
@@ -259,82 +268,107 @@ public class MainActivity extends AppCompatActivity {
         finishIntro();
     }
 
+    /**
+     * finishIntro 入口：判断状态是否已保存
+     * 若已保存（即将重建），延迟到 onResume 后再执行
+     */
     private void finishIntro() {
         isIntroPlaying = false;
         isWaitingForConfirm = false;
-        runOnUiThread(() -> {
-            videoView.setVisibility(View.GONE);
-            videoView.stopPlayback();
-            if (tvVersion != null) tvVersion.setVisibility(View.GONE);
-            fragmentContainer.setVisibility(View.VISIBLE);
-            handler.removeCallbacksAndMessages(null);
 
-            int lastLevelId = progressManager.getLastLevelId();
-            if (lastLevelId != -1) {
-                // 有进度：先建立年级/章节根，再进入游戏
+        if (isFinishing() || isDestroyed()) return;
+
+        // 关键：状态已保存时不能 commit，延迟到 onResume
+        if (fragmentManager.isStateSaved()) {
+            pendingFinishIntro = true;
+            return;
+        }
+
+        doFinishIntro();
+    }
+
+    /**
+     * 真正执行界面切换
+     */
+    private void doFinishIntro() {
+        if (isFinishing() || isDestroyed()) return;
+
+        // 再次安全检查
+        if (fragmentManager.isStateSaved()) {
+            pendingFinishIntro = true;
+            return;
+        }
+
+        videoView.setVisibility(View.GONE);
+        videoView.stopPlayback();
+        if (tvVersion != null) tvVersion.setVisibility(View.GONE);
+        fragmentContainer.setVisibility(View.VISIBLE);
+        handler.removeCallbacksAndMessages(null);
+
+        int lastLevelId = progressManager.getLastLevelId();
+        if (lastLevelId != -1) {
+            // 先建立年级根（同步），再压入游戏
+            if (!fragmentManager.isStateSaved()) {
                 fragmentManager.beginTransaction()
                         .replace(R.id.fragment_container, new GradeFragment())
-                        .commitNow();
-                showGameFragment(lastLevelId);
-            } else {
-                showGradeFragment();
+                        .commitNowAllowingStateLoss();
             }
-        });
+            showGameFragment(lastLevelId);
+        } else {
+            showGradeFragment();
+        }
     }
 
-    // ---------- 导航方法 ----------
-
-    /** 显示年级选择（首次） */
     public void showGradeFragment() {
+        if (isFinishing() || isDestroyed()) return;
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, new GradeFragment())
-                .commit();
+                .commitAllowingStateLoss();
     }
 
-    /** 显示章节菜单（某个年级） */
     public void showChapterFragment(int gradeId) {
+        if (isFinishing() || isDestroyed()) return;
         ChapterFragment fragment = ChapterFragment.newInstance(gradeId);
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, fragment)
                 .addToBackStack(null)
-                .commit();
+                .commitAllowingStateLoss();
     }
 
-    /** 显示关卡列表 */
     public void showLevelFragment(int chapterId) {
+        if (isFinishing() || isDestroyed()) return;
         LevelFragment fragment = LevelFragment.newInstance(chapterId);
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, fragment)
                 .addToBackStack(null)
-                .commit();
+                .commitAllowingStateLoss();
     }
 
-    /** 显示游戏 */
     public void showGameFragment(int levelId) {
+        if (isFinishing() || isDestroyed()) return;
         GameFragment fragment = GameFragment.newInstance(levelId);
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, fragment)
                 .addToBackStack(GAME_BACK_STACK_TAG)
-                .commit();
+                .commitAllowingStateLoss();
     }
 
-    /** 切换到下一关（游戏内部调用） */
     public void navigateToGame(int levelId) {
+        if (isFinishing() || isDestroyed()) return;
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, GameFragment.newInstance(levelId))
                 .addToBackStack(GAME_BACK_STACK_TAG)
-                .commit();
+                .commitAllowingStateLoss();
     }
 
-    /** 返回年级菜单 */
     public void navigateToGrade() {
+        if (isFinishing() || isDestroyed()) return;
         fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, new GradeFragment())
-                .commit();
+                .commitAllowingStateLoss();
     }
 
-    /** 兼容旧接口：返回章节菜单（用默认一年级上） */
     public void navigateToChapter() {
         navigateToGrade();
     }
@@ -343,6 +377,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        if (isFinishing() || isDestroyed()) return;
+
         int count = fragmentManager.getBackStackEntryCount();
         if (count > 0) {
             fragmentManager.popBackStack();
@@ -351,18 +387,25 @@ public class MainActivity extends AppCompatActivity {
             if (current instanceof GradeFragment) {
                 super.onBackPressed();
             } else {
-                // 回退栈为空，回到年级选择
                 fragmentManager.beginTransaction()
                         .replace(R.id.fragment_container, new GradeFragment())
-                        .commit();
+                        .commitAllowingStateLoss();
             }
         }
     }
 
     @Override
     protected void onDestroy() {
-        if (videoView != null) videoView.stopPlayback();
+        if (videoView != null) {
+            videoView.stopPlayback();
+        }
         handler.removeCallbacksAndMessages(null);
+
+        // 仅当 Activity 真正结束时释放 BGM
+        if (isFinishing()) {
+            MusicManager.getInstance(this).release();
+        }
+
         super.onDestroy();
     }
 }

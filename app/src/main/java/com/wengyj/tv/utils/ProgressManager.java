@@ -88,15 +88,37 @@ public class ProgressManager {
     }
 
     // ---------- 是否已有游戏进度 ----------
-    /**
-     * 是否已经玩过（有进度记录）
-     * 用于判断启动时是否直接进入上次的关卡
-     */
     public boolean hasProgress() {
         return prefs.getBoolean(KEY_HAS_PROGRESS, false);
     }
 
-    // ---------- 重置所有进度（星星和关卡） ----------
+    // ---------- 重置单个章节的进度 ----------
+    /**
+     * 只清除指定章节的所有关卡完成记录，并恢复星星为 20。
+     * 其他章节的进度保持不变。
+     *
+     * @param chapterId 要重置的章节 ID
+     */
+    public void resetChapterProgress(int chapterId) {
+        Set<Integer> completed = getCompletedLevels();
+        Set<String> newSet = new HashSet<>();
+
+        for (Integer levelId : completed) {
+            // 关卡 ID 格式：chapterId * 100 + levelIndex
+            int belongChapter = levelId / 100;
+            if (belongChapter != chapterId) {
+                newSet.add(String.valueOf(levelId));
+            }
+        }
+
+        prefs.edit()
+                .putString(KEY_COMPLETED, TextUtils.join(",", newSet))
+                .putInt(KEY_STARS, 20)
+                .putBoolean(KEY_HAS_PROGRESS, false)
+                .apply();
+    }
+
+    // ---------- 重置所有进度（保留旧接口，谨慎使用） ----------
     public void resetAllProgress() {
         prefs.edit()
                 .putString(KEY_COMPLETED, "")
@@ -116,16 +138,11 @@ public class ProgressManager {
                 .apply();
     }
 
-    /**
-     * 获取上次的关卡 ID（全局唯一）
-     * 若无进度返回 -1
-     */
     public int getLastLevelId() {
         if (!hasProgress()) return -1;
         int chapter = prefs.getInt(KEY_CURRENT_CHAPTER, -1);
         int level = prefs.getInt(KEY_CURRENT_LEVEL, -1);
         if (chapter == -1 || level == -1) return -1;
-        // level 存储的是全局唯一ID（如 101, 201）
         return level;
     }
 
