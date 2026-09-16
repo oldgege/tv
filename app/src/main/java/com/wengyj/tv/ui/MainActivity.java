@@ -23,6 +23,7 @@ import com.wengyj.tv.ui.level.LevelFragment;
 import com.wengyj.tv.ui.game.GameFragment;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
+import com.wengyj.tv.utils.TtsManager;
 
 public class MainActivity extends AppCompatActivity {
     private FragmentManager fragmentManager;
@@ -37,8 +38,6 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isIntroPlaying = false;
     private boolean isWaitingForConfirm = false;
-
-    // 是否需要在 onResume 后补执行 finishIntro
     private boolean pendingFinishIntro = false;
 
     private Runnable pauseAtEndRunnable;
@@ -146,6 +145,12 @@ public class MainActivity extends AppCompatActivity {
 
         progressManager = new ProgressManager(this);
 
+        // ========== 关键：Activity 启动时提前异步初始化 TTS ==========
+        // 因为接下来会播放 4 段开场视频（约 20~30 秒），TTS 可以在此期间完成初始化
+        // 进入游戏时 TTS 已就绪，无需等待
+        TtsManager.getInstance(this).ensureInit();
+        // ============================================================
+
         fragmentManager = getSupportFragmentManager();
         videoView = findViewById(R.id.video_view);
         fragmentContainer = findViewById(R.id.fragment_container);
@@ -162,7 +167,6 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         MusicManager.getInstance(this).start();
 
-        // 处理延迟的 finishIntro（状态已恢复）
         if (pendingFinishIntro) {
             pendingFinishIntro = false;
             doFinishIntro();
@@ -268,17 +272,12 @@ public class MainActivity extends AppCompatActivity {
         finishIntro();
     }
 
-    /**
-     * finishIntro 入口：判断状态是否已保存
-     * 若已保存（即将重建），延迟到 onResume 后再执行
-     */
     private void finishIntro() {
         isIntroPlaying = false;
         isWaitingForConfirm = false;
 
         if (isFinishing() || isDestroyed()) return;
 
-        // 关键：状态已保存时不能 commit，延迟到 onResume
         if (fragmentManager.isStateSaved()) {
             pendingFinishIntro = true;
             return;
@@ -287,13 +286,9 @@ public class MainActivity extends AppCompatActivity {
         doFinishIntro();
     }
 
-    /**
-     * 真正执行界面切换
-     */
     private void doFinishIntro() {
         if (isFinishing() || isDestroyed()) return;
 
-        // 再次安全检查
         if (fragmentManager.isStateSaved()) {
             pendingFinishIntro = true;
             return;
@@ -307,7 +302,6 @@ public class MainActivity extends AppCompatActivity {
 
         int lastLevelId = progressManager.getLastLevelId();
         if (lastLevelId != -1) {
-            // 先建立年级根（同步），再压入游戏
             if (!fragmentManager.isStateSaved()) {
                 fragmentManager.beginTransaction()
                         .replace(R.id.fragment_container, new GradeFragment())
@@ -400,6 +394,9 @@ public class MainActivity extends AppCompatActivity {
             videoView.stopPlayback();
         }
         handler.removeCallbacksAndMessages(null);
+
+        // 停止当前播报，但保留 TTS 实例（单例复用，下次启动更快）
+        TtsManager.getInstance(this).stop();
 
         // 仅当 Activity 真正结束时释放 BGM
         if (isFinishing()) {

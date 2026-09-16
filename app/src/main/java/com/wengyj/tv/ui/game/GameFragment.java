@@ -6,7 +6,6 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -29,22 +28,16 @@ import com.wengyj.tv.data.model.Level;
 import com.wengyj.tv.data.model.Question;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
+import com.wengyj.tv.utils.TtsManager;
 import com.wengyj.tv.ui.MainActivity;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 
-public class GameFragment extends Fragment implements TextToSpeech.OnInitListener {
+public class GameFragment extends Fragment {
     private static final String ARG_LEVEL_ID = "level_id";
-
-    private static final String IFLYTEK_TTS_ENGINE = "com.iflytek.speechcloud";
-    private static boolean hasShownTtsError = false;
-
-    private static final int MAX_SET_LANGUAGE_RETRY = 5;
-    private static final long SET_LANGUAGE_RETRY_DELAY = 400;
 
     private static final long FADE_OUT_DURATION = 150;
     private static final long FADE_IN_DURATION = 250;
@@ -65,13 +58,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     private VideoView videoError;
     private ProgressManager progressManager;
 
-    private TextToSpeech tts;
-    private String currentEngine = null;
-    private boolean isInitializing = false;
-    private boolean isTtsReady = false;
-    private int setLanguageRetryCount = 0;
-
-    private Handler handler = new Handler();
+    private final Handler handler = new Handler();
     private boolean isAnimating = false;
 
     private List<Integer> errorVideoList = null;
@@ -94,33 +81,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        initTts(null);
-    }
-
-    private void initTts(String engine) {
-        releaseTts();
-        isInitializing = true;
-        currentEngine = engine;
-        setLanguageRetryCount = 0;
-
-        if (engine == null) {
-            tts = new TextToSpeech(getContext(), this);
-        } else {
-            tts = new TextToSpeech(getContext(), this, engine);
-        }
-    }
-
-    private void releaseTts() {
-        if (tts != null) {
-            try {
-                tts.stop();
-                tts.shutdown();
-            } catch (Exception ignored) {}
-            tts = null;
-        }
-        isTtsReady = false;
-        isInitializing = false;
-        setLanguageRetryCount = 0;
+        // 不在 onCreate 初始化 TTS，由 MainActivity 已提前初始化，或首次 speak 时懒加载
     }
 
     @Nullable
@@ -175,11 +136,11 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             tvHint.setText(q.getHint() != null ? q.getHint() : "");
         }
 
-        if (isTtsReady) {
-            speakCurrentQuestion();
-        }
-
         buildOptions();
+
+        // 延迟一小段时间后播报，确保视图已渲染
+        handler.postDelayed(this::speakCurrentQuestion, 100);
+
         return view;
     }
 
@@ -242,10 +203,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 }
             });
         }
-        if (tts == null && !isInitializing) {
-            hasShownTtsError = false;
-            initTts(null);
-        }
     }
 
     @Override
@@ -274,15 +231,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         List<String> options = currentLevel.getQuestion().getOptions();
         if (index < 0 || index >= options.size()) return;
 
-        if (tts != null && isTtsReady) {
-            String text = (index + 1) + "号，" + options.get(index);
-            speakText(text);
-        } else {
-            if (!isAdded() || getContext() == null) return;
-            try {
-                Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
-            } catch (Exception ignored) {}
-        }
+        String text = (index + 1) + "号，" + options.get(index);
+        TtsManager.getInstance(getContext()).speak(text);
     }
 
     private void updateStarsDisplay() {
@@ -462,101 +412,22 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 .start();
     }
 
-    @Override
-    public void onInit(int status) {
-        isInitializing = false;
-
-        if (status != TextToSpeech.SUCCESS) {
-            if (currentEngine == null) {
-                initTts(IFLYTEK_TTS_ENGINE);
-            } else {
-                isTtsReady = false;
-                showTtsErrorToast();
-            }
-            return;
-        }
-
-        handler.postDelayed(this::trySetLanguage, 300);
-    }
-
-    private void trySetLanguage() {
-        if (tts == null) return;
-
-        try {
-            int result = tts.setLanguage(Locale.CHINESE);
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                result = tts.setLanguage(Locale.CHINA);
-            }
-
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                if (currentEngine == null) {
-                    initTts(IFLYTEK_TTS_ENGINE);
-                } else {
-                    isTtsReady = false;
-                    showTtsErrorToast();
-                }
-                return;
-            }
-
-            try {
-                tts.setSpeechRate(0.5f);
-                tts.setPitch(1.1f);
-            } catch (Exception ignored) {}
-            isTtsReady = true;
-
-            if (currentLevel != null && tvQuestion != null) {
-                speakCurrentQuestion();
-            }
-
-        } catch (Exception e) {
-            setLanguageRetryCount++;
-            if (setLanguageRetryCount < MAX_SET_LANGUAGE_RETRY) {
-                handler.postDelayed(this::trySetLanguage, SET_LANGUAGE_RETRY_DELAY);
-            } else {
-                if (currentEngine == null) {
-                    initTts(IFLYTEK_TTS_ENGINE);
-                } else {
-                    isTtsReady = false;
-                    showTtsErrorToast();
-                }
-            }
-        }
-    }
-
-    private void showTtsErrorToast() {
-        if (hasShownTtsError) return;
-        hasShownTtsError = true;
-
-        if (!isAdded() || getContext() == null) return;
-        try {
-            Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_LONG).show();
-        } catch (Exception ignored) {}
-    }
-
     private void speakCurrentQuestion() {
         if (currentLevel == null) return;
 
-        if (tts != null && isTtsReady) {
-            Question q = currentLevel.getQuestion();
-            if (q.getType() == Question.Type.LISTEN_SELECT
-                    && q.getAudioText() != null && !q.getAudioText().isEmpty()) {
-                speakText(q.getAudioText() + "，" + q.getAudioText());
-            } else {
-                speakText(q.getPrompt());
-            }
-        } else {
-            if (!isAdded() || getContext() == null) return;
-            try {
-                Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_SHORT).show();
-            } catch (Exception ignored) {}
-        }
-    }
+        TtsManager ttsManager = TtsManager.getInstance(getContext());
+        Question q = currentLevel.getQuestion();
 
-    private void speakText(String text) {
-        if (tts != null && isTtsReady && text != null && !text.isEmpty()) {
-            try {
-                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
-            } catch (Exception ignored) {}
+        if (q.getType() == Question.Type.LISTEN_SELECT
+                && q.getAudioText() != null && !q.getAudioText().isEmpty()) {
+            ttsManager.speak(q.getAudioText() + "，" + q.getAudioText());
+        } else {
+            ttsManager.speak(q.getPrompt());
+        }
+
+        // 如果 TTS 无法初始化，会通过 TtsManager 的监听器提示（无需在此处理）
+        if (!ttsManager.isReady()) {
+            ttsManager.ensureInit();
         }
     }
 
@@ -567,7 +438,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
         clearOptionsContainer();
 
-        releaseTts();
         if (videoSuccess != null) {
             videoSuccess.stopPlayback();
         }
@@ -582,6 +452,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         MusicManager.getInstance(getContext()).restoreVolume();
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
+        // 注意：不释放 TTS，由 TtsManager 单例维护
     }
 
     private List<Integer> findErrorVideos() {
@@ -744,22 +615,16 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         if (activity != null) {
             activity.showLevelFragment(currentChapterId);
             Toast.makeText(activity, "💫 星星用完了，本章重新开始吧！", Toast.LENGTH_LONG).show();
-            speakText("星星用完了，本章重新开始吧");
+            TtsManager.getInstance(getContext()).speak("星星用完了，本章重新开始吧");
         }
     }
 
-    /**
-     * 答对后的处理：只对首次通关的关卡加星
-     * 已通关的关卡重玩不再加星，避免无限刷星
-     */
     private void onCorrectAnswer() {
         int currentId = currentLevel.getId();
 
-        // 关键：只在首次通关时加星
         if (!progressManager.isLevelCompleted(currentId)) {
             progressManager.addStar();
         }
-        // saveCompletedLevel 是幂等操作，重复调用无影响
         progressManager.saveCompletedLevel(currentId);
         updateStarsDisplay();
 
@@ -787,7 +652,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             isAnimating = false;
             if (activity != null) {
                 activity.navigateToGrade();
-                speakText("恭喜你完成所有关卡！");
+                TtsManager.getInstance(getContext()).speak("恭喜你完成所有关卡！");
             }
         }
     }
