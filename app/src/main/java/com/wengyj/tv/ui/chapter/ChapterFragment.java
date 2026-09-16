@@ -25,6 +25,9 @@ import java.util.List;
 import java.util.Set;
 
 public class ChapterFragment extends Fragment {
+    private static final String ARG_GRADE_ID = "grade_id";
+
+    private int gradeId = 1;
     private RecyclerView recyclerView;
     private ChapterAdapter adapter;
     private TextView tvStars;
@@ -32,6 +35,22 @@ public class ChapterFragment extends Fragment {
     private TextView tvBgmIcon;
     private View tvBack;
     private ProgressManager progressManager;
+
+    public static ChapterFragment newInstance(int gradeId) {
+        ChapterFragment fragment = new ChapterFragment();
+        Bundle args = new Bundle();
+        args.putInt(ARG_GRADE_ID, gradeId);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            gradeId = getArguments().getInt(ARG_GRADE_ID, 1);
+        }
+    }
 
     @Nullable
     @Override
@@ -51,12 +70,9 @@ public class ChapterFragment extends Fragment {
         recyclerView.setFocusable(true);
         recyclerView.setFocusableInTouchMode(true);
 
-        // 初始化星星显示
         updateStarsDisplay();
-        // 初始化 BGM 图标
         updateBgmIcon(progressManager.isBgmEnabled());
 
-        // BGM 开关点击
         tvBgmToggle.setOnClickListener(v -> {
             boolean newState = !progressManager.isBgmEnabled();
             progressManager.setBgmEnabled(newState);
@@ -64,15 +80,15 @@ public class ChapterFragment extends Fragment {
             updateBgmIcon(newState);
         });
 
-        // 退出按钮
+        // 返回按钮 → 回到年级选择
         tvBack.setOnClickListener(v -> {
             if (getActivity() != null) {
-                getActivity().finish();
+                getActivity().onBackPressed();
             }
         });
 
-        // 构建章节列表 + 解锁状态
-        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        // 加载该年级的章节
+        List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(gradeId);
         Set<Integer> unlockedChapterIds = computeUnlockedChapters(chapters);
 
         adapter = new ChapterAdapter(chapters, unlockedChapterIds, (chapter, isLocked) -> {
@@ -87,56 +103,38 @@ public class ChapterFragment extends Fragment {
         });
         recyclerView.setAdapter(adapter);
 
-        // 请求焦点
         recyclerView.post(() -> recyclerView.requestFocus());
 
         return view;
     }
 
-    /**
-     * 计算已解锁的章节：
-     * 第1章默认解锁；后续章节需要前一章全部通关才解锁。
-     */
     private Set<Integer> computeUnlockedChapters(List<Chapter> chapters) {
         Set<Integer> unlocked = new HashSet<>();
         if (chapters.isEmpty()) return unlocked;
-
-        // 第一章总是解锁
         unlocked.add(chapters.get(0).getId());
-
-        // 依次检查后续章节
         for (int i = 1; i < chapters.size(); i++) {
-            Chapter prevChapter = chapters.get(i - 1);
-            if (isChapterCompleted(prevChapter)) {
+            Chapter prev = chapters.get(i - 1);
+            if (isChapterCompleted(prev)) {
                 unlocked.add(chapters.get(i).getId());
             } else {
-                // 前一章未通关，后续全部锁定，直接跳出
                 break;
             }
         }
         return unlocked;
     }
 
-    /**
-     * 判断某章节是否所有关卡都已完成
-     */
     private boolean isChapterCompleted(Chapter chapter) {
         Set<Integer> completed = progressManager.getCompletedLevels();
-        if (chapter.getLevels() == null || chapter.getLevels().isEmpty()) {
-            return false;
-        }
+        if (chapter.getLevels() == null || chapter.getLevels().isEmpty()) return false;
         for (Level level : chapter.getLevels()) {
-            if (!completed.contains(level.getId())) {
-                return false;
-            }
+            if (!completed.contains(level.getId())) return false;
         }
         return true;
     }
 
     private void updateStarsDisplay() {
         if (tvStars != null && progressManager != null) {
-            int stars = progressManager.getStars();
-            tvStars.setText(String.valueOf(stars));
+            tvStars.setText(String.valueOf(progressManager.getStars()));
         }
     }
 
@@ -154,9 +152,9 @@ public class ChapterFragment extends Fragment {
         MusicManager.getInstance(getContext()).restoreVolume();
         MusicManager.getInstance(getContext()).start();
 
-        // 每次返回时重新计算解锁状态（因为可能完成了新的章节）
+        // 每次返回时刷新解锁状态
         if (adapter != null && recyclerView != null) {
-            List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+            List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(gradeId);
             Set<Integer> unlockedChapterIds = computeUnlockedChapters(chapters);
             adapter = new ChapterAdapter(chapters, unlockedChapterIds, (chapter, isLocked) -> {
                 if (isLocked) {

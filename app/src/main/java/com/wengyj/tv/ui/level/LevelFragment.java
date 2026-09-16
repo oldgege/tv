@@ -38,7 +38,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private ProgressManager progressManager;
     private List<Level> levels;
     private TextView tvStars;
-    private View tvBack;          // 改为 View 类型，因为布局中是 LinearLayout
+    private View tvBack;
 
     private TextToSpeech tts;
     private String currentEngine = null;
@@ -99,7 +99,7 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         View view = inflater.inflate(R.layout.fragment_level, container, false);
         recyclerView = view.findViewById(R.id.recycler_levels);
         tvStars = view.findViewById(R.id.tv_stars);
-        tvBack = view.findViewById(R.id.tv_back);   // View 类型，不会 ClassCastException
+        tvBack = view.findViewById(R.id.tv_back);
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 4));
         recyclerView.setHasFixedSize(true);
@@ -108,7 +108,6 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
 
         updateStarsDisplay();
 
-        // 返回按钮点击
         if (tvBack != null) {
             tvBack.setOnClickListener(v -> {
                 if (getActivity() != null) {
@@ -117,14 +116,10 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             });
         }
 
-        List<Chapter> all = ChapterDataSource.getAllChapters(getContext());
-        Chapter chapter = null;
-        for (Chapter c : all) {
-            if (c.getId() == chapterId) {
-                chapter = c;
-                break;
-            }
-        }
+        // ========== 关键：遍历两个年级查找章节 ==========
+        Chapter chapter = findChapterById(chapterId);
+        // ================================================
+
         if (chapter != null) {
             levels = chapter.getLevels();
             for (int i = 0; i < levels.size(); i++) {
@@ -157,8 +152,28 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             recyclerView.setAdapter(adapter);
 
             recyclerView.post(() -> recyclerView.requestFocus());
+        } else {
+            Toast.makeText(getContext(), "章节数据错误: " + chapterId, Toast.LENGTH_SHORT).show();
         }
         return view;
+    }
+
+    /**
+     * 在所有年级中查找指定 chapterId 的章节
+     */
+    private Chapter findChapterById(int chapterId) {
+        // 先查一年级上
+        List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(1);
+        for (Chapter c : chapters) {
+            if (c.getId() == chapterId) return c;
+        }
+        // 再查一年级下
+        chapters = ChapterDataSource.getChaptersByGrade(2);
+        for (Chapter c : chapters) {
+            if (c.getId() == chapterId) return c;
+        }
+        // 其他年级可以继续加
+        return null;
     }
 
     private void updateStarsDisplay() {

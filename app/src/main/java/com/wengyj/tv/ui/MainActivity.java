@@ -18,6 +18,7 @@ import androidx.fragment.app.FragmentManager;
 
 import com.wengyj.tv.R;
 import com.wengyj.tv.ui.chapter.ChapterFragment;
+import com.wengyj.tv.ui.grade.GradeFragment;
 import com.wengyj.tv.ui.level.LevelFragment;
 import com.wengyj.tv.ui.game.GameFragment;
 import com.wengyj.tv.utils.MusicManager;
@@ -39,7 +40,6 @@ public class MainActivity extends AppCompatActivity {
 
     private Runnable pauseAtEndRunnable;
 
-    // ---------- 视频按键监听器（游戏内使用） ----------
     private OnVideoKeyListener videoKeyListener;
 
     public interface OnVideoKeyListener {
@@ -54,14 +54,9 @@ public class MainActivity extends AppCompatActivity {
         this.videoKeyListener = null;
     }
 
-    // ---------- 数字键监听器（游戏内使用） ----------
     private OnNumberKeyListener numberKeyListener;
 
     public interface OnNumberKeyListener {
-        /**
-         * @param number 按下的数字键（1~4）
-         * @return true 表示已消费该按键，false 表示不拦截
-         */
         boolean onNumberKeyPressed(int number);
     }
 
@@ -73,43 +68,31 @@ public class MainActivity extends AppCompatActivity {
         this.numberKeyListener = null;
     }
 
-    /**
-     * 将 KeyEvent 的 keyCode 转为数字（1~4），不是数字键返回 -1
-     */
     private int keyCodeToNumber(int keyCode) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_1:
-            case KeyEvent.KEYCODE_NUMPAD_1:
-                return 1;
+            case KeyEvent.KEYCODE_NUMPAD_1: return 1;
             case KeyEvent.KEYCODE_2:
-            case KeyEvent.KEYCODE_NUMPAD_2:
-                return 2;
+            case KeyEvent.KEYCODE_NUMPAD_2: return 2;
             case KeyEvent.KEYCODE_3:
-            case KeyEvent.KEYCODE_NUMPAD_3:
-                return 3;
+            case KeyEvent.KEYCODE_NUMPAD_3: return 3;
             case KeyEvent.KEYCODE_4:
-            case KeyEvent.KEYCODE_NUMPAD_4:
-                return 4;
-            default:
-                return -1;
+            case KeyEvent.KEYCODE_NUMPAD_4: return 4;
+            default: return -1;
         }
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            // 返回键不拦截
             if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
                 return super.dispatchKeyEvent(event);
             }
 
-            // 数字键拦截（用于播报选项）
             if (numberKeyListener != null) {
                 int num = keyCodeToNumber(event.getKeyCode());
                 if (num > 0) {
-                    if (numberKeyListener.onNumberKeyPressed(num)) {
-                        return true;
-                    }
+                    if (numberKeyListener.onNumberKeyPressed(num)) return true;
                 }
             }
 
@@ -239,9 +222,7 @@ public class MainActivity extends AppCompatActivity {
                 if (duration > 0) {
                     int delay = Math.max(duration - 300, 0);
                     pauseAtEndRunnable = () -> {
-                        if (videoView.isPlaying()) {
-                            videoView.pause();
-                        }
+                        if (videoView.isPlaying()) videoView.pause();
                         isIntroPlaying = false;
                         isWaitingForConfirm = true;
                     };
@@ -284,30 +265,42 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             videoView.setVisibility(View.GONE);
             videoView.stopPlayback();
-            if (tvVersion != null) {
-                tvVersion.setVisibility(View.GONE);
-            }
+            if (tvVersion != null) tvVersion.setVisibility(View.GONE);
             fragmentContainer.setVisibility(View.VISIBLE);
             handler.removeCallbacksAndMessages(null);
 
             int lastLevelId = progressManager.getLastLevelId();
             if (lastLevelId != -1) {
+                // 有进度：先建立年级/章节根，再进入游戏
                 fragmentManager.beginTransaction()
-                        .replace(R.id.fragment_container, new ChapterFragment())
+                        .replace(R.id.fragment_container, new GradeFragment())
                         .commitNow();
                 showGameFragment(lastLevelId);
             } else {
-                showChapterFragment();
+                showGradeFragment();
             }
         });
     }
 
-    private void showChapterFragment() {
+    // ---------- 导航方法 ----------
+
+    /** 显示年级选择（首次） */
+    public void showGradeFragment() {
         fragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, new ChapterFragment())
+                .replace(R.id.fragment_container, new GradeFragment())
                 .commit();
     }
 
+    /** 显示章节菜单（某个年级） */
+    public void showChapterFragment(int gradeId) {
+        ChapterFragment fragment = ChapterFragment.newInstance(gradeId);
+        fragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    /** 显示关卡列表 */
     public void showLevelFragment(int chapterId) {
         LevelFragment fragment = LevelFragment.newInstance(chapterId);
         fragmentManager.beginTransaction()
@@ -316,6 +309,7 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
+    /** 显示游戏 */
     public void showGameFragment(int levelId) {
         GameFragment fragment = GameFragment.newInstance(levelId);
         fragmentManager.beginTransaction()
@@ -324,40 +318,42 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
+    /** 切换到下一关（游戏内部调用） */
     public void navigateToGame(int levelId) {
-        fragmentManager.popBackStackImmediate(GAME_BACK_STACK_TAG,
-                FragmentManager.POP_BACK_STACK_INCLUSIVE);
         fragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, GameFragment.newInstance(levelId))
                 .addToBackStack(GAME_BACK_STACK_TAG)
                 .commit();
     }
 
-    public void navigateToChapter() {
+    /** 返回年级菜单 */
+    public void navigateToGrade() {
         fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         fragmentManager.beginTransaction()
-                .replace(R.id.fragment_container, new ChapterFragment())
+                .replace(R.id.fragment_container, new GradeFragment())
                 .commit();
+    }
+
+    /** 兼容旧接口：返回章节菜单（用默认一年级上） */
+    public void navigateToChapter() {
+        navigateToGrade();
     }
 
     private static final String GAME_BACK_STACK_TAG = "game";
 
     @Override
     public void onBackPressed() {
-        if (fragmentManager.getBackStackEntryCount() > 1) {
+        int count = fragmentManager.getBackStackEntryCount();
+        if (count > 0) {
             fragmentManager.popBackStack();
-        } else if (fragmentManager.getBackStackEntryCount() == 1) {
-            fragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
-            fragmentManager.beginTransaction()
-                    .replace(R.id.fragment_container, new ChapterFragment())
-                    .commit();
         } else {
             Fragment current = fragmentManager.findFragmentById(R.id.fragment_container);
-            if (current instanceof ChapterFragment) {
+            if (current instanceof GradeFragment) {
                 super.onBackPressed();
             } else {
+                // 回退栈为空，回到年级选择
                 fragmentManager.beginTransaction()
-                        .replace(R.id.fragment_container, new ChapterFragment())
+                        .replace(R.id.fragment_container, new GradeFragment())
                         .commit();
             }
         }
@@ -365,9 +361,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (videoView != null) {
-            videoView.stopPlayback();
-        }
+        if (videoView != null) videoView.stopPlayback();
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }

@@ -51,16 +51,21 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private int levelId;
     private Level currentLevel;
-    private int currentChapterId = -1;             // 记录当前章节 ID，用于显示关卡信息
-    private TextView tvQuestion, tvHint;
-    private TextView tvStars;
-    private TextView tvLevelInfo;                  // 关卡信息
-    private View tvBack;
-    private View btnReplay;
-    private LinearLayout optionsContainer;
-    private LinearLayout contentContainer;
-    private VideoView videoSuccess;
-    private VideoView videoError;
+    private int currentChapterId = -1;
+
+    // ========== View 类型严格对齐布局 ==========
+    private TextView tvQuestion;         // layout: TextView
+    private TextView tvHint;             // layout: TextView
+    private TextView tvStars;            // layout: TextView
+    private TextView tvLevelInfo;        // layout: TextView
+    private View tvBack;                 // layout: LinearLayout → 用 View
+    private View btnReplay;              // layout: LinearLayout → 用 View
+    private LinearLayout contentContainer;  // layout: LinearLayout
+    private LinearLayout optionsContainer;  // layout: LinearLayout
+    private VideoView videoSuccess;      // layout: VideoView
+    private VideoView videoError;        // layout: VideoView
+    // ========================================
+
     private ProgressManager progressManager;
 
     private TextToSpeech tts;
@@ -126,16 +131,19 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_game, container, false);
-        tvQuestion = view.findViewById(R.id.tv_question);
-        tvHint = view.findViewById(R.id.tv_hint);
-        tvStars = view.findViewById(R.id.tv_stars);
-        tvLevelInfo = view.findViewById(R.id.tv_level_info);
-        tvBack = view.findViewById(R.id.tv_back);
-        btnReplay = view.findViewById(R.id.btn_replay);
-        contentContainer = view.findViewById(R.id.content_container);
-        optionsContainer = view.findViewById(R.id.options_container);
-        videoSuccess = view.findViewById(R.id.video_success);
-        videoError = view.findViewById(R.id.video_error);
+
+        // ========== findViewById 类型严格对齐 ==========
+        tvQuestion = (TextView) view.findViewById(R.id.tv_question);
+        tvHint = (TextView) view.findViewById(R.id.tv_hint);
+        tvStars = (TextView) view.findViewById(R.id.tv_stars);
+        tvLevelInfo = (TextView) view.findViewById(R.id.tv_level_info);
+        tvBack = view.findViewById(R.id.tv_back);          // LinearLayout，用 View 接收
+        btnReplay = view.findViewById(R.id.btn_replay);    // LinearLayout，用 View 接收
+        contentContainer = (LinearLayout) view.findViewById(R.id.content_container);
+        optionsContainer = (LinearLayout) view.findViewById(R.id.options_container);
+        videoSuccess = (VideoView) view.findViewById(R.id.video_success);
+        videoError = (VideoView) view.findViewById(R.id.video_error);
+        // ===============================================
 
         if (tvBack != null) {
             tvBack.setOnClickListener(v -> {
@@ -162,7 +170,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             return view;
         }
 
-        // 显示关卡信息
         updateLevelInfo();
 
         Question q = currentLevel.getQuestion();
@@ -181,11 +188,18 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return view;
     }
 
-    /**
-     * 加载关卡并记录所属章节 ID
-     */
     private boolean loadLevelById(int id) {
-        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(1);
+        for (Chapter chapter : chapters) {
+            for (Level level : chapter.getLevels()) {
+                if (level.getId() == id) {
+                    currentLevel = level;
+                    currentChapterId = chapter.getId();
+                    return true;
+                }
+            }
+        }
+        chapters = ChapterDataSource.getChaptersByGrade(2);
         for (Chapter chapter : chapters) {
             for (Level level : chapter.getLevels()) {
                 if (level.getId() == id) {
@@ -198,18 +212,22 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return false;
     }
 
-    /**
-     * 更新顶部关卡信息显示
-     * 格式：第 X 章 · 第 Y 关
-     */
     private void updateLevelInfo() {
         if (tvLevelInfo == null || currentLevel == null) return;
 
-        // levelId 格式为 chapterId * 100 + levelIndex（如 305 表示第3章第5关）
         int levelIndex = currentLevel.getId() % 100;
         int chapterId = currentChapterId > 0 ? currentChapterId : (currentLevel.getId() / 100);
 
-        String info = "第 " + chapterId + " 章 · 第 " + levelIndex + " 关";
+        String gradeText;
+        if (chapterId >= 1 && chapterId <= 9) {
+            gradeText = "一年级上";
+        } else if (chapterId >= 11 && chapterId <= 19) {
+            gradeText = "一年级下";
+        } else {
+            gradeText = "";
+        }
+
+        String info = gradeText + " · 第 " + chapterId + " 章 · 第 " + levelIndex + " 关";
         tvLevelInfo.setText(info);
     }
 
@@ -418,7 +436,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
                 .start();
     }
 
-    // ---------- TTS 回调 ----------
     @Override
     public void onInit(int status) {
         isInitializing = false;
@@ -568,7 +585,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     }
 
     private boolean isLastLevelOfChapter() {
-        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(currentChapterId >= 10 ? 2 : 1);
         for (Chapter chapter : chapters) {
             List<Level> levels = chapter.getLevels();
             if (!levels.isEmpty() && levels.get(levels.size() - 1).getId() == levelId) {
@@ -589,7 +606,8 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     }
 
     private int getNextLevelId() {
-        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
+        int gradeId = currentChapterId >= 10 ? 2 : 1;
+        List<Chapter> chapters = ChapterDataSource.getChaptersByGrade(gradeId);
         Chapter currentChapter = null;
         int currentIndex = -1;
         for (Chapter chapter : chapters) {
@@ -692,7 +710,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         progressManager.resetAllProgress();
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
-            activity.navigateToChapter();
+            activity.navigateToGrade();
             Toast.makeText(activity, "💫 星星用完了，重新开始吧！", Toast.LENGTH_LONG).show();
             speakText("星星用完了，重新开始吧");
         }
@@ -726,7 +744,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         } else {
             isAnimating = false;
             if (activity != null) {
-                activity.navigateToChapter();
+                activity.navigateToGrade();
                 speakText("恭喜你完成所有关卡！");
             }
         }
@@ -739,14 +757,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             isAnimating = false;
             MainActivity activity = (MainActivity) getActivity();
             if (activity != null) {
-                activity.navigateToChapter();
+                activity.navigateToGrade();
             }
             return;
         }
 
         progressManager.saveCurrentProgress(0, levelId);
 
-        // 更新关卡信息
         updateLevelInfo();
 
         Question q = currentLevel.getQuestion();

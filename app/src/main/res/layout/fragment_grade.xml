@@ -13,7 +13,6 @@
         android:gravity="center_vertical"
         android:padding="16dp">
 
-        <!-- 返回按钮 -->
         <LinearLayout
             android:id="@+id/tv_back"
             android:layout_width="wrap_content"
@@ -31,19 +30,18 @@
             <ImageView
                 android:layout_width="28dp"
                 android:layout_height="28dp"
-                android:src="@drawable/ic_back"
+                android:src="@drawable/ic_home"
                 android:layout_marginEnd="8dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="返回"
+                android:text="退出"
                 android:textSize="24sp"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- BGM 开关 -->
         <LinearLayout
             android:id="@+id/tv_bgm_toggle"
             android:layout_width="wrap_content"
@@ -81,9 +79,8 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- 星星显示 -->
         <TextView
-            android:id="@+id/tv_star_icon_chapter"
+            android:id="@+id/tv_star_icon_grade"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="⭐"
@@ -91,7 +88,7 @@
             android:textColor="#FFD700" />
 
         <TextView
-            android:id="@+id/tv_stars_chapter"
+            android:id="@+id/tv_stars_grade"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="20"
@@ -101,8 +98,20 @@
             android:layout_marginStart="4dp" />
     </LinearLayout>
 
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="请选择年级"
+        android:textSize="32sp"
+        android:textColor="#FFEB3B"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp" />
+
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_chapters"
+        android:id="@+id/recycler_grades"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:padding="16dp"
