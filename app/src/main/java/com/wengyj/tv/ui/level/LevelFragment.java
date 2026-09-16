@@ -1,7 +1,5 @@
 package com.wengyj.tv.ui.level;
 
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
@@ -29,7 +27,10 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private static final String ARG_CHAPTER_ID = "chapter_id";
 
     private static final String IFLYTEK_TTS_ENGINE = "com.iflytek.speechcloud";
-    private static boolean hasOpenedTtsSettings = false;
+    private static boolean hasShownTtsError = false;
+
+    private static final int MAX_SET_LANGUAGE_RETRY = 5;
+    private static final long SET_LANGUAGE_RETRY_DELAY = 400;
 
     private int chapterId;
     private RecyclerView recyclerView;
@@ -39,8 +40,12 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
     private TextView tvStars;
 
     private TextToSpeech tts;
+    private String currentEngine = null;
+    private boolean isInitializing = false;
     private boolean isTtsReady = false;
-    private boolean triedIflytek = false;
+    private int setLanguageRetryCount = 0;
+
+    private android.os.Handler handler = new android.os.Handler();
 
     public static LevelFragment newInstance(int chapterId) {
         LevelFragment fragment = new LevelFragment();
@@ -57,18 +62,20 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        initDefaultTts();
+        initTts(null);
     }
 
-    private void initDefaultTts() {
+    private void initTts(String engine) {
         releaseTts();
-        tts = new TextToSpeech(getContext(), this);
-    }
+        isInitializing = true;
+        currentEngine = engine;
+        setLanguageRetryCount = 0;
 
-    private void initIflytekTts() {
-        releaseTts();
-        triedIflytek = true;
-        tts = new TextToSpeech(getContext(), this, IFLYTEK_TTS_ENGINE);
+        if (engine == null) {
+            tts = new TextToSpeech(getContext(), this);
+        } else {
+            tts = new TextToSpeech(getContext(), this, engine);
+        }
     }
 
     private void releaseTts() {
@@ -80,6 +87,8 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
             tts = null;
         }
         isTtsReady = false;
+        isInitializing = false;
+        setLanguageRetryCount = 0;
     }
 
     @Nullable
@@ -168,88 +177,95 @@ public class LevelFragment extends Fragment implements TextToSpeech.OnInitListen
         if (recyclerView != null) {
             recyclerView.post(() -> recyclerView.requestFocus());
         }
-        // 从 TTS 设置返回后重新初始化
-        if (!isTtsReady && tts == null) {
-            triedIflytek = false;
-            hasOpenedTtsSettings = false;
-            initDefaultTts();
+        if (tts == null && !isInitializing) {
+            hasShownTtsError = false;
+            initTts(null);
         }
     }
 
     // ---------- TTS 回调 ----------
     @Override
     public void onInit(int status) {
-        if (status == TextToSpeech.SUCCESS) {
+        isInitializing = false;
+
+        if (status != TextToSpeech.SUCCESS) {
+            if (currentEngine == null) {
+                initTts(IFLYTEK_TTS_ENGINE);
+            } else {
+                isTtsReady = false;
+                showTtsErrorToast();
+            }
+            return;
+        }
+
+        handler.postDelayed(this::trySetLanguage, 300);
+    }
+
+    private void trySetLanguage() {
+        if (tts == null) return;
+
+        try {
             int result = tts.setLanguage(Locale.CHINESE);
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 result = tts.setLanguage(Locale.CHINA);
             }
+
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                if (!triedIflytek) {
-                    initIflytekTts();
+                if (currentEngine == null) {
+                    initTts(IFLYTEK_TTS_ENGINE);
                 } else {
                     isTtsReady = false;
-                    openTtsSettingsOnce();
+                    showTtsErrorToast();
                 }
-            } else {
+                return;
+            }
+
+            try {
                 tts.setSpeechRate(0.7f);
                 tts.setPitch(1.1f);
-                isTtsReady = true;
-            }
-        } else {
-            if (!triedIflytek) {
-                initIflytekTts();
+            } catch (Exception ignored) {}
+            isTtsReady = true;
+
+        } catch (Exception e) {
+            setLanguageRetryCount++;
+            if (setLanguageRetryCount < MAX_SET_LANGUAGE_RETRY) {
+                handler.postDelayed(this::trySetLanguage, SET_LANGUAGE_RETRY_DELAY);
             } else {
-                isTtsReady = false;
-                openTtsSettingsOnce();
+                if (currentEngine == null) {
+                    initTts(IFLYTEK_TTS_ENGINE);
+                } else {
+                    isTtsReady = false;
+                    showTtsErrorToast();
+                }
             }
         }
     }
 
-    private void openTtsSettingsOnce() {
-        if (hasOpenedTtsSettings) {
-            if (getContext() != null) {
-                Toast.makeText(getContext(), "语音播报不可用，请检查系统语音设置",
-                        Toast.LENGTH_SHORT).show();
-            }
-            return;
-        }
-        hasOpenedTtsSettings = true;
+    /**
+     * TTS 不可用时只弹 Toast 提示，不跳转设置页
+     */
+    private void showTtsErrorToast() {
+        if (hasShownTtsError) return;
+        hasShownTtsError = true;
 
-        if (getContext() != null) {
-            Toast.makeText(getContext(), "语音引擎不可用，正在打开语音设置...",
-                    Toast.LENGTH_LONG).show();
-        }
-
+        if (!isAdded() || getContext() == null) return;
         try {
-            Intent intent = new Intent("android.speech.tts.engine.TTS_SETTINGS");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            return;
-        } catch (ActivityNotFoundException e) {
-            // 忽略
-        }
-
-        try {
-            Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        } catch (Exception e) {
-            if (getContext() != null) {
-                Toast.makeText(getContext(), "无法打开系统设置", Toast.LENGTH_SHORT).show();
-            }
-        }
+            Toast.makeText(getContext(), "语音播报不可用", Toast.LENGTH_LONG).show();
+        } catch (Exception ignored) {}
     }
 
     private void speakText(String text) {
         if (tts != null && isTtsReady && text != null && !text.isEmpty()) {
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+            try {
+                tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+            } catch (Exception ignored) {}
         }
     }
 
     @Override
     public void onDestroy() {
         releaseTts();
+        handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 }

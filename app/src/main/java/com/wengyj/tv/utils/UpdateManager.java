@@ -246,6 +246,8 @@ public class UpdateManager {
             long downloaded = apk.exists() ? apk.length() : 0;
 
             conn = (HttpURLConnection) new URL(apkUrl).openConnection();
+            // Android 4.x 需要显式开启 TLS1.2 + SNI，否则握手阶段就会被服务端拒绝
+            TlsCompat.apply(conn);
             conn.setInstanceFollowRedirects(true);
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
@@ -363,6 +365,7 @@ public class UpdateManager {
         InputStream in = null;
         try {
             conn = (HttpURLConnection) new URL(url).openConnection();
+            TlsCompat.apply(conn);
             conn.setInstanceFollowRedirects(true);
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
