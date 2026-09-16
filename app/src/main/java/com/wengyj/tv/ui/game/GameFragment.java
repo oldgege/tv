@@ -51,8 +51,10 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
 
     private int levelId;
     private Level currentLevel;
+    private int currentChapterId = -1;             // 记录当前章节 ID，用于显示关卡信息
     private TextView tvQuestion, tvHint;
     private TextView tvStars;
+    private TextView tvLevelInfo;                  // 关卡信息
     private View tvBack;
     private View btnReplay;
     private LinearLayout optionsContainer;
@@ -127,6 +129,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         tvQuestion = view.findViewById(R.id.tv_question);
         tvHint = view.findViewById(R.id.tv_hint);
         tvStars = view.findViewById(R.id.tv_stars);
+        tvLevelInfo = view.findViewById(R.id.tv_level_info);
         tvBack = view.findViewById(R.id.tv_back);
         btnReplay = view.findViewById(R.id.btn_replay);
         contentContainer = view.findViewById(R.id.content_container);
@@ -159,6 +162,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
             return view;
         }
 
+        // 显示关卡信息
+        updateLevelInfo();
+
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
         if (q.getType() == Question.Type.LISTEN_SELECT) {
@@ -175,12 +181,16 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return view;
     }
 
+    /**
+     * 加载关卡并记录所属章节 ID
+     */
     private boolean loadLevelById(int id) {
         List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
         for (Chapter chapter : chapters) {
             for (Level level : chapter.getLevels()) {
                 if (level.getId() == id) {
                     currentLevel = level;
+                    currentChapterId = chapter.getId();
                     return true;
                 }
             }
@@ -188,11 +198,25 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return false;
     }
 
+    /**
+     * 更新顶部关卡信息显示
+     * 格式：第 X 章 · 第 Y 关
+     */
+    private void updateLevelInfo() {
+        if (tvLevelInfo == null || currentLevel == null) return;
+
+        // levelId 格式为 chapterId * 100 + levelIndex（如 305 表示第3章第5关）
+        int levelIndex = currentLevel.getId() % 100;
+        int chapterId = currentChapterId > 0 ? currentChapterId : (currentLevel.getId() / 100);
+
+        String info = "第 " + chapterId + " 章 · 第 " + levelIndex + " 关";
+        tvLevelInfo.setText(info);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
 
-        // 注册数字键监听
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
             activity.setNumberKeyListener(this::handleNumberKey);
@@ -214,18 +238,13 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     @Override
     public void onPause() {
         super.onPause();
-        // 清理数字键监听
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
             activity.clearNumberKeyListener();
         }
     }
 
-    /**
-     * 处理数字键 1~4：播报对应选项的内容
-     */
     private boolean handleNumberKey(int number) {
-        // 动画/视频播放期间不响应
         if (isAnimating) return true;
         if (currentLevel == null) return true;
 
@@ -237,9 +256,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         return true;
     }
 
-    /**
-     * 播报指定索引的选项
-     */
     private void speakOption(int index) {
         if (currentLevel == null) return;
         List<String> options = currentLevel.getQuestion().getOptions();
@@ -365,7 +381,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         });
     }
 
-    // ---------- 过渡动画 ----------
     private void fadeOutContent(final Runnable onComplete) {
         if (contentContainer == null) {
             if (onComplete != null) onComplete.run();
@@ -524,7 +539,6 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         super.onDestroy();
     }
 
-    // ---------- 动态查找所有 error 视频 ----------
     private List<Integer> findErrorVideos() {
         if (errorVideoList != null) return errorVideoList;
 
@@ -565,15 +579,7 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
     }
 
     private int getCurrentChapterId() {
-        List<Chapter> chapters = ChapterDataSource.getAllChapters(getContext());
-        for (Chapter chapter : chapters) {
-            for (Level level : chapter.getLevels()) {
-                if (level.getId() == levelId) {
-                    return chapter.getId();
-                }
-            }
-        }
-        return -1;
+        return currentChapterId;
     }
 
     private int getStoryVideoResId(int chapterId) {
@@ -739,6 +745,9 @@ public class GameFragment extends Fragment implements TextToSpeech.OnInitListene
         }
 
         progressManager.saveCurrentProgress(0, levelId);
+
+        // 更新关卡信息
+        updateLevelInfo();
 
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
