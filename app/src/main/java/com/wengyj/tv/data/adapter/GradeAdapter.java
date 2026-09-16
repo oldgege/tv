@@ -1,6 +1,7 @@
 package com.wengyj.tv.data.adapter;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -61,7 +62,9 @@ public class GradeAdapter extends RecyclerView.Adapter<GradeAdapter.ViewHolder> 
                         .setDuration(200)
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
-                holder.card.setCardElevation(20f);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    holder.card.setCardElevation(20f);
+                }
                 if (available) {
                     holder.card.setCardBackgroundColor(COLOR_FOCUSED);
                 }
@@ -72,7 +75,9 @@ public class GradeAdapter extends RecyclerView.Adapter<GradeAdapter.ViewHolder> 
                         .setDuration(200)
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
-                holder.card.setCardElevation(6f);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    holder.card.setCardElevation(6f);
+                }
                 holder.card.setCardBackgroundColor(available ? COLOR_NORMAL : COLOR_LOCKED);
             }
         });

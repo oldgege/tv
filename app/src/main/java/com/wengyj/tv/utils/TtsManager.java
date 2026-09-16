@@ -7,6 +7,7 @@ import android.speech.tts.TextToSpeech;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -15,6 +16,7 @@ import java.util.Locale;
  * - 懒加载：只有首次调用 speak() 时才真正初始化引擎
  * - 单例跟随 Application，Activity/Fragment 退出不影响
  * - 初始化未完成时挂起播报请求，就绪后自动补发
+ * - 兼容 API 18：使用 HashMap 版本 speak()
  */
 public class TtsManager implements TextToSpeech.OnInitListener {
 
@@ -23,6 +25,7 @@ public class TtsManager implements TextToSpeech.OnInitListener {
     private static final long SET_LANGUAGE_RETRY_DELAY = 400;
     private static final long INIT_DELAY = 300;
     private static final int MAX_PENDING = 3;
+    private static final String UTTERANCE_ID = "tts_default";
 
     private static TtsManager instance;
 
@@ -30,17 +33,15 @@ public class TtsManager implements TextToSpeech.OnInitListener {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private TextToSpeech tts;
-    private String currentEngine = null;    // null = 默认引擎
+    private String currentEngine = null;
     private boolean isInitializing = false;
     private boolean isReady = false;
     private int setLanguageRetryCount = 0;
     private boolean hasShownErrorToast = false;
 
-    // 语速/音调
     private float speechRate = 0.5f;
     private float pitch = 1.1f;
 
-    // 初始化期间挂起的播报请求
     private static class PendingSpeak {
         final String text;
         final float rate;
@@ -51,7 +52,6 @@ public class TtsManager implements TextToSpeech.OnInitListener {
     }
     private final List<PendingSpeak> pendingSpeaks = new ArrayList<>();
 
-    // 状态回调
     public interface OnTtsStateListener {
         void onTtsReady();
         void onTtsError();
@@ -73,7 +73,6 @@ public class TtsManager implements TextToSpeech.OnInitListener {
         return isReady;
     }
 
-    /** 确保 TTS 已初始化（首次调用触发懒加载） */
     public void ensureInit() {
         if (tts != null || isInitializing) return;
         initTts(null);
@@ -125,7 +124,6 @@ public class TtsManager implements TextToSpeech.OnInitListener {
             return;
         }
 
-        // 延迟后设置语言（讯飞在 API 18 上 onInit 回调过早）
         handler.postDelayed(this::trySetLanguage, INIT_DELAY);
     }
 
@@ -183,12 +181,10 @@ public class TtsManager implements TextToSpeech.OnInitListener {
 
     // ========== 公开 API ==========
 
-    /** 用默认语速播报 */
     public void speak(String text) {
         speak(text, speechRate);
     }
 
-    /** 指定语速播报 */
     public void speak(String text, float rate) {
         if (text == null || text.isEmpty()) return;
         ensureInit();
@@ -196,7 +192,6 @@ public class TtsManager implements TextToSpeech.OnInitListener {
         if (isReady) {
             doSpeak(text, rate);
         } else {
-            // 初始化未完成，挂起
             synchronized (pendingSpeaks) {
                 if (pendingSpeaks.size() < MAX_PENDING) {
                     pendingSpeaks.add(new PendingSpeak(text, rate));
@@ -205,20 +200,28 @@ public class TtsManager implements TextToSpeech.OnInitListener {
         }
     }
 
+    /**
+     * API 18 兼容：使用 HashMap 传递 utteranceId
+     */
     private void doSpeak(String text, float rate) {
         if (tts == null || !isReady) return;
         try {
-            if (Math.abs(rate - speechRate) > 0.01f) {
+            boolean needReset = Math.abs(rate - speechRate) > 0.01f;
+            if (needReset) {
                 tts.setSpeechRate(rate);
             }
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
-            if (Math.abs(rate - speechRate) > 0.01f) {
+
+            // API 18 兼容写法：speak(String, int, HashMap<String, String>)
+            HashMap<String, String> params = new HashMap<>();
+            params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+
+            if (needReset) {
                 tts.setSpeechRate(speechRate);
             }
         } catch (Exception ignored) {}
     }
 
-    /** 停止播报（不清空引擎） */
     public void stop() {
         if (tts != null) {
             try { tts.stop(); } catch (Exception ignored) {}
@@ -228,7 +231,6 @@ public class TtsManager implements TextToSpeech.OnInitListener {
         }
     }
 
-    /** 完整释放（进程退出时用，一般不调用） */
     public void release() {
         releaseTtsInternal();
         synchronized (pendingSpeaks) {

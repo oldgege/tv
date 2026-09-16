@@ -1,6 +1,7 @@
 package com.wengyj.tv.ui.chapter;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,7 +38,6 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
         this.listener = listener;
     }
 
-    /** 更新解锁状态并刷新 */
     public void updateUnlockedChapters(Set<Integer> unlockedChapterIds) {
         this.unlockedChapterIds = unlockedChapterIds;
         notifyDataSetChanged();
@@ -72,7 +72,10 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
                         .setDuration(200)
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
-                holder.card.setCardElevation(20f);
+                // API 21+ 才能使用 elevation 阴影；API 18 用背景色变化代替
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    holder.card.setCardElevation(20f);
+                }
                 if (!isLocked) {
                     holder.card.setCardBackgroundColor(COLOR_FOCUSED);
                 }
@@ -83,7 +86,9 @@ public class ChapterAdapter extends RecyclerView.Adapter<ChapterAdapter.ViewHold
                         .setDuration(200)
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
-                holder.card.setCardElevation(6f);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    holder.card.setCardElevation(6f);
+                }
                 holder.card.setCardBackgroundColor(isLocked ? COLOR_LOCKED : COLOR_NORMAL);
             }
         });

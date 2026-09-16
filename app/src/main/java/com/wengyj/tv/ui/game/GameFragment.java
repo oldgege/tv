@@ -2,8 +2,10 @@ package com.wengyj.tv.ui.game;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.LayoutInflater;
@@ -81,7 +83,6 @@ public class GameFragment extends Fragment {
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        // 不在 onCreate 初始化 TTS，由 MainActivity 已提前初始化，或首次 speak 时懒加载
     }
 
     @Nullable
@@ -138,7 +139,6 @@ public class GameFragment extends Fragment {
 
         buildOptions();
 
-        // 延迟一小段时间后播报，确保视图已渲染
         handler.postDelayed(this::speakCurrentQuestion, 100);
 
         return view;
@@ -425,7 +425,6 @@ public class GameFragment extends Fragment {
             ttsManager.speak(q.getPrompt());
         }
 
-        // 如果 TTS 无法初始化，会通过 TtsManager 的监听器提示（无需在此处理）
         if (!ttsManager.isReady()) {
             ttsManager.ensureInit();
         }
@@ -452,7 +451,6 @@ public class GameFragment extends Fragment {
         MusicManager.getInstance(getContext()).restoreVolume();
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
-        // 注意：不释放 TTS，由 TtsManager 单例维护
     }
 
     private List<Integer> findErrorVideos() {
@@ -579,6 +577,9 @@ public class GameFragment extends Fragment {
         });
     }
 
+    /**
+     * API 18 兼容：设置音频流类型，避免部分设备无声或绿屏
+     */
     private void showVideo(VideoView videoView, int rawResId, Runnable safeComplete) {
         videoView.setVisibility(View.VISIBLE);
         String uriPath = "android.resource://" + getContext().getPackageName() + "/" + rawResId;
@@ -586,6 +587,12 @@ public class GameFragment extends Fragment {
 
         videoView.setOnPreparedListener(mp -> {
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            // API 21 以下部分设备需要明确设置音频流类型
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+                try {
+                    mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                } catch (Exception ignored) {}
+            }
             videoView.start();
         });
 

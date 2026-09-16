@@ -1,6 +1,7 @@
 package com.wengyj.tv.ui.level;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,7 +33,6 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
         this.listener = listener;
     }
 
-    /** 数据无变化时（仅解锁/完成状态变化）调用，刷新全部可见项 */
     public void refreshAll() {
         notifyDataSetChanged();
     }
@@ -74,7 +74,10 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
                         .setDuration(200)
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
-                holder.card.setCardElevation(16f);
+                // API 21+ 才能使用 elevation 阴影
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    holder.card.setCardElevation(16f);
+                }
                 holder.card.setCardBackgroundColor(COLOR_FOCUSED);
             } else {
                 v.animate()
@@ -83,7 +86,9 @@ public class LevelAdapter extends RecyclerView.Adapter<LevelAdapter.ViewHolder> 
                         .setDuration(200)
                         .setInterpolator(new AccelerateDecelerateInterpolator())
                         .start();
-                holder.card.setCardElevation(4f);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    holder.card.setCardElevation(4f);
+                }
                 holder.card.setCardBackgroundColor(COLOR_NORMAL);
             }
         });
