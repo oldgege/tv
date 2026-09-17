@@ -1,6 +1,8 @@
 package com.wengyj.tv.ui.grade;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,6 +21,7 @@ import com.wengyj.tv.data.model.Grade;
 import com.wengyj.tv.ui.MainActivity;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
+import com.wengyj.tv.utils.SpeechManager;
 
 import java.util.List;
 
@@ -30,6 +33,8 @@ public class GradeFragment extends Fragment {
     private TextView tvBgmIcon;
     private View tvBack;
     private ProgressManager progressManager;
+    private SpeechManager speechManager;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     @Nullable
     @Override
@@ -43,6 +48,7 @@ public class GradeFragment extends Fragment {
         tvBack = view.findViewById(R.id.tv_back);
 
         progressManager = new ProgressManager(getContext());
+        speechManager = new SpeechManager(getContext());
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
         recyclerView.setHasFixedSize(true);
@@ -68,6 +74,7 @@ public class GradeFragment extends Fragment {
         List<Grade> grades = GradeDataSource.getAllGrades();
         adapter = new GradeAdapter(grades, grade -> {
             if (!grade.isAvailable()) {
+                speechManager.speakUi("coming_soon", "即将上线");
                 Toast.makeText(getContext(), "🔒 " + grade.getTitle() + " 即将上线",
                         Toast.LENGTH_SHORT).show();
                 return;
@@ -80,6 +87,9 @@ public class GradeFragment extends Fragment {
         recyclerView.setAdapter(adapter);
 
         recyclerView.post(() -> recyclerView.requestFocus());
+
+        handler.postDelayed(() ->
+                speechManager.speakUi("grade_menu", "请选择年级"), 500);
 
         return view;
     }
@@ -106,5 +116,15 @@ public class GradeFragment extends Fragment {
         if (recyclerView != null) {
             recyclerView.post(() -> recyclerView.requestFocus());
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (speechManager != null) {
+            speechManager.release();
+            speechManager = null;
+        }
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }

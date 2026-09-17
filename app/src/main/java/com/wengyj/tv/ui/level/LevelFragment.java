@@ -1,6 +1,8 @@
 package com.wengyj.tv.ui.level;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,7 +20,7 @@ import com.wengyj.tv.data.model.Chapter;
 import com.wengyj.tv.data.model.Level;
 import com.wengyj.tv.ui.MainActivity;
 import com.wengyj.tv.utils.ProgressManager;
-import com.wengyj.tv.utils.TtsManager;
+import com.wengyj.tv.utils.SpeechManager;
 
 import java.util.List;
 
@@ -32,6 +34,9 @@ public class LevelFragment extends Fragment {
     private List<Level> levels;
     private TextView tvStars;
     private View tvBack;
+
+    private SpeechManager speechManager;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     public static LevelFragment newInstance(int chapterId) {
         LevelFragment fragment = new LevelFragment();
@@ -48,7 +53,7 @@ public class LevelFragment extends Fragment {
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        // 注意：不再初始化 TTS
+        speechManager = new SpeechManager(getContext());
     }
 
     @Nullable
@@ -85,8 +90,7 @@ public class LevelFragment extends Fragment {
                 @Override
                 public void onLevelClick(Level level) {
                     if (level.isLocked()) {
-                        // 直接调用 TtsManager 单例（首次会懒加载 TTS）
-                        TtsManager.getInstance(getContext()).speak("还未解锁哟");
+                        speechManager.speakUi("not_unlocked", "还未解锁哟");
                         Toast.makeText(getContext(), "🔒 还未解锁哟", Toast.LENGTH_SHORT).show();
                     } else {
                         progressManager.saveCurrentProgress(chapterId, level.getId());
@@ -100,6 +104,9 @@ public class LevelFragment extends Fragment {
             recyclerView.setAdapter(adapter);
 
             recyclerView.post(() -> recyclerView.requestFocus());
+
+            handler.postDelayed(() ->
+                    speechManager.speakUi("level_menu", "请选择关卡"), 500);
         } else {
             Toast.makeText(getContext(), "章节数据错误: " + chapterId, Toast.LENGTH_SHORT).show();
         }
@@ -156,7 +163,11 @@ public class LevelFragment extends Fragment {
 
     @Override
     public void onDestroy() {
-        // 注意：不释放 TTS
+        if (speechManager != null) {
+            speechManager.release();
+            speechManager = null;
+        }
+        handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 }

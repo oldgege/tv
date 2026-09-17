@@ -30,11 +30,10 @@ import com.wengyj.tv.data.model.Level;
 import com.wengyj.tv.data.model.Question;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
-import com.wengyj.tv.utils.TtsManager;
+import com.wengyj.tv.utils.SpeechManager;
 import com.wengyj.tv.ui.MainActivity;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -60,6 +59,8 @@ public class GameFragment extends Fragment {
     private VideoView videoError;
     private ProgressManager progressManager;
 
+    private SpeechManager speechManager;
+
     private final Handler handler = new Handler();
     private boolean isAnimating = false;
 
@@ -83,6 +84,7 @@ public class GameFragment extends Fragment {
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
+        speechManager = new SpeechManager(getContext());
     }
 
     @Nullable
@@ -113,7 +115,7 @@ public class GameFragment extends Fragment {
         if (btnReplay != null) {
             btnReplay.setOnClickListener(v -> {
                 if (isAnimating) return;
-                speakCurrentQuestion();
+                playCurrentQuestion();
             });
         }
 
@@ -139,7 +141,7 @@ public class GameFragment extends Fragment {
 
         buildOptions();
 
-        handler.postDelayed(this::speakCurrentQuestion, 100);
+        handler.postDelayed(this::playCurrentQuestion, 300);
 
         return view;
     }
@@ -226,13 +228,15 @@ public class GameFragment extends Fragment {
         return true;
     }
 
+    /** 播报选项内容对应的 MP3 */
     private void speakOption(int index) {
         if (currentLevel == null) return;
         List<String> options = currentLevel.getQuestion().getOptions();
         if (index < 0 || index >= options.size()) return;
 
-        String text = (index + 1) + "号，" + options.get(index);
-        TtsManager.getInstance(getContext()).speak(text);
+        int levelIndex = currentLevel.getId() % 100;
+        String optionText = options.get(index);
+        speechManager.speakOption(currentChapterId, levelIndex, index + 1, optionText);
     }
 
     private void updateStarsDisplay() {
@@ -252,9 +256,7 @@ public class GameFragment extends Fragment {
 
             Object tag = child.getTag(R.id.anim_tag);
             if (tag instanceof AnimatorSet) {
-                try {
-                    ((AnimatorSet) tag).cancel();
-                } catch (Exception ignored) {}
+                try { ((AnimatorSet) tag).cancel(); } catch (Exception ignored) {}
                 child.setTag(R.id.anim_tag, null);
             }
 
@@ -412,22 +414,12 @@ public class GameFragment extends Fragment {
                 .start();
     }
 
-    private void speakCurrentQuestion() {
+    /** 播放当前题目语音（MP3 优先，TTS 兜底） */
+    private void playCurrentQuestion() {
         if (currentLevel == null) return;
-
-        TtsManager ttsManager = TtsManager.getInstance(getContext());
-        Question q = currentLevel.getQuestion();
-
-        if (q.getType() == Question.Type.LISTEN_SELECT
-                && q.getAudioText() != null && !q.getAudioText().isEmpty()) {
-            ttsManager.speak(q.getAudioText() + "，" + q.getAudioText());
-        } else {
-            ttsManager.speak(q.getPrompt());
-        }
-
-        if (!ttsManager.isReady()) {
-            ttsManager.ensureInit();
-        }
+        int levelIndex = currentLevel.getId() % 100;
+        String text = currentLevel.getQuestion().getPrompt();
+        speechManager.speakQuestion(currentChapterId, levelIndex, text);
     }
 
     @Override
@@ -436,6 +428,11 @@ public class GameFragment extends Fragment {
             contentContainer.animate().cancel();
         }
         clearOptionsContainer();
+
+        if (speechManager != null) {
+            speechManager.release();
+            speechManager = null;
+        }
 
         if (videoSuccess != null) {
             videoSuccess.stopPlayback();
@@ -543,6 +540,9 @@ public class GameFragment extends Fragment {
             return;
         }
 
+        // 播放视频前停止语音
+        if (speechManager != null) speechManager.stop();
+
         final boolean[] completed = {false};
 
         final Runnable safeComplete = () -> {
@@ -577,9 +577,6 @@ public class GameFragment extends Fragment {
         });
     }
 
-    /**
-     * API 18 兼容：设置音频流类型，避免部分设备无声或绿屏
-     */
     private void showVideo(VideoView videoView, int rawResId, Runnable safeComplete) {
         videoView.setVisibility(View.VISIBLE);
         String uriPath = "android.resource://" + getContext().getPackageName() + "/" + rawResId;
@@ -587,7 +584,6 @@ public class GameFragment extends Fragment {
 
         videoView.setOnPreparedListener(mp -> {
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT);
-            // API 21 以下部分设备需要明确设置音频流类型
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
                 try {
                     mp.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -622,7 +618,7 @@ public class GameFragment extends Fragment {
         if (activity != null) {
             activity.showLevelFragment(currentChapterId);
             Toast.makeText(activity, "💫 星星用完了，本章重新开始吧！", Toast.LENGTH_LONG).show();
-            TtsManager.getInstance(getContext()).speak("星星用完了，本章重新开始吧");
+            speechManager.speakUi("stars_empty", "星星用完了，本章重新开始吧");
         }
     }
 
@@ -659,7 +655,7 @@ public class GameFragment extends Fragment {
             isAnimating = false;
             if (activity != null) {
                 activity.navigateToGrade();
-                TtsManager.getInstance(getContext()).speak("恭喜你完成所有关卡！");
+                speechManager.speakUi("all_complete", "恭喜你完成所有关卡");
             }
         }
     }
@@ -696,7 +692,7 @@ public class GameFragment extends Fragment {
             isAnimating = false;
         });
 
-        speakCurrentQuestion();
+        handler.postDelayed(this::playCurrentQuestion, 300);
     }
 
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
@@ -723,21 +719,20 @@ public class GameFragment extends Fragment {
         int errorResId = getRandomErrorVideoResId();
 
         playVideoAndWait(videoError, errorResId, () -> {
+            // 不再打乱选项，直接刷新视图
             reshuffleOptions();
             fadeInContent(() -> {
                 isAnimating = false;
             });
-            speakCurrentQuestion();
+            handler.postDelayed(this::playCurrentQuestion, 300);
         });
     }
 
+    /**
+     * 答错后：不再打乱选项顺序，直接刷新视图
+     */
     private void reshuffleOptions() {
-        Question q = currentLevel.getQuestion();
-        List<String> options = q.getOptions();
-        String correctAnswer = options.get(q.getCorrectAnswerIndex());
-        Collections.shuffle(options);
-        int newCorrectIndex = options.indexOf(correctAnswer);
-        q.setCorrectAnswerIndex(newCorrectIndex);
+        // 选项不再打乱，仅重建视图
         buildOptions();
     }
 }

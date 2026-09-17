@@ -1,6 +1,8 @@
 package com.wengyj.tv.ui.chapter;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,6 +21,7 @@ import com.wengyj.tv.data.model.Level;
 import com.wengyj.tv.ui.MainActivity;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
+import com.wengyj.tv.utils.SpeechManager;
 
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +39,8 @@ public class ChapterFragment extends Fragment {
     private TextView tvBgmIcon;
     private View tvBack;
     private ProgressManager progressManager;
+    private SpeechManager speechManager;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     public static ChapterFragment newInstance(int gradeId) {
         ChapterFragment fragment = new ChapterFragment();
@@ -65,6 +70,7 @@ public class ChapterFragment extends Fragment {
         tvBack = view.findViewById(R.id.tv_back);
 
         progressManager = new ProgressManager(getContext());
+        speechManager = new SpeechManager(getContext());
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 3));
         recyclerView.setHasFixedSize(true);
@@ -87,12 +93,12 @@ public class ChapterFragment extends Fragment {
             }
         });
 
-        // ========== 只加载一次数据（缓存已生效） ==========
         chapters = ChapterDataSource.getChaptersByGrade(gradeId);
         Set<Integer> unlockedChapterIds = computeUnlockedChapters(chapters);
 
         adapter = new ChapterAdapter(chapters, unlockedChapterIds, (chapter, isLocked) -> {
             if (isLocked) {
+                speechManager.speakUi("chapter_locked", "请先完成上一章");
                 Toast.makeText(getContext(), "🔒 请先完成上一章", Toast.LENGTH_SHORT).show();
             } else {
                 MainActivity activity = (MainActivity) getActivity();
@@ -104,6 +110,9 @@ public class ChapterFragment extends Fragment {
         recyclerView.setAdapter(adapter);
 
         recyclerView.post(() -> recyclerView.requestFocus());
+
+        handler.postDelayed(() ->
+                speechManager.speakUi("chapter_menu", "请选择章节"), 500);
 
         return view;
     }
@@ -152,15 +161,23 @@ public class ChapterFragment extends Fragment {
         MusicManager.getInstance(getContext()).restoreVolume();
         MusicManager.getInstance(getContext()).start();
 
-        // ========== 关键修复：只刷新解锁状态，不重建 Adapter ==========
         if (adapter != null && chapters != null) {
             Set<Integer> unlockedChapterIds = computeUnlockedChapters(chapters);
             adapter.updateUnlockedChapters(unlockedChapterIds);
         }
-        // ==========================================================
 
         if (recyclerView != null) {
             recyclerView.post(() -> recyclerView.requestFocus());
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (speechManager != null) {
+            speechManager.release();
+            speechManager = null;
+        }
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }

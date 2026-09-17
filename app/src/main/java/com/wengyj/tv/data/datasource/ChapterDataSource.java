@@ -59,20 +59,26 @@ public class ChapterDataSource {
         return getChaptersByGrade(1);
     }
 
+    /**
+     * 创建选择题：选项不打乱，正确选项固定在第一位（位置由算法保证）
+     */
     private static Question createChoiceQuestion(String prompt, String correctAnswer, String[] wrongAnswers, String hint) {
         List<String> options = new ArrayList<>();
         options.add(correctAnswer);
         Collections.addAll(options, wrongAnswers);
-        Collections.shuffle(options);
+        // 不再打乱顺序
         int correctIndex = options.indexOf(correctAnswer);
         return new Question(Question.Type.CHOICE, prompt, options, correctIndex, hint, null);
     }
 
+    /**
+     * 创建听力题：选项不打乱
+     */
     private static Question createListenQuestion(String audioText, String correctAnswer, String[] wrongAnswers) {
         List<String> options = new ArrayList<>();
         options.add(correctAnswer);
         Collections.addAll(options, wrongAnswers);
-        Collections.shuffle(options);
+        // 不再打乱顺序
         int correctIndex = options.indexOf(correctAnswer);
         return new Question(Question.Type.LISTEN_SELECT, "🎧 听音选字", options, correctIndex, "", null, audioText);
     }
