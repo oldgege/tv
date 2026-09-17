@@ -28,6 +28,7 @@ import com.wengyj.tv.data.datasource.ChapterDataSource;
 import com.wengyj.tv.data.model.Chapter;
 import com.wengyj.tv.data.model.Level;
 import com.wengyj.tv.data.model.Question;
+import com.wengyj.tv.utils.MistakeManager;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
 import com.wengyj.tv.utils.SpeechManager;
@@ -39,11 +40,16 @@ import java.util.Random;
 
 public class GameFragment extends Fragment {
     private static final String ARG_LEVEL_ID = "level_id";
+    private static final String ARG_MODE = "mode";
+
+    public static final int MODE_NORMAL = 0;
+    public static final int MODE_REVIEW = 1;
 
     private static final long FADE_OUT_DURATION = 150;
     private static final long FADE_IN_DURATION = 250;
 
     private int levelId;
+    private int mode = MODE_NORMAL;   // ★
     private Level currentLevel;
     private int currentChapterId = -1;
 
@@ -58,6 +64,7 @@ public class GameFragment extends Fragment {
     private VideoView videoSuccess;
     private VideoView videoError;
     private ProgressManager progressManager;
+    private MistakeManager mistakeManager;   // ★
 
     private SpeechManager speechManager;
 
@@ -70,11 +77,20 @@ public class GameFragment extends Fragment {
     private int firstOptionViewId = View.NO_ID;
 
     public static GameFragment newInstance(int levelId) {
+        return newInstance(levelId, MODE_NORMAL);
+    }
+
+    public static GameFragment newInstance(int levelId, int mode) {
         GameFragment fragment = new GameFragment();
         Bundle args = new Bundle();
         args.putInt(ARG_LEVEL_ID, levelId);
+        args.putInt(ARG_MODE, mode);
         fragment.setArguments(args);
         return fragment;
+    }
+
+    private boolean isReviewMode() {
+        return mode == MODE_REVIEW;
     }
 
     @Override
@@ -82,8 +98,10 @@ public class GameFragment extends Fragment {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
             levelId = getArguments().getInt(ARG_LEVEL_ID);
+            mode = getArguments().getInt(ARG_MODE, MODE_NORMAL);
         }
         progressManager = new ProgressManager(getContext());
+        mistakeManager = new MistakeManager(getContext());   // ★
         speechManager = SpeechManager.getInstance(getContext());
     }
 
@@ -129,6 +147,19 @@ public class GameFragment extends Fragment {
             return view;
         }
 
+        // ★ 复习模式：校验题目是否已更新
+        if (isReviewMode()) {
+            MistakeManager.Mistake m = mistakeManager.get(levelId);
+            if (m != null && !m.prompt.equals(currentLevel.getQuestion().getPrompt())) {
+                mistakeManager.remove(levelId);
+                Toast.makeText(getContext(), "题目已更新，移出错题本", Toast.LENGTH_SHORT).show();
+                handler.postDelayed(() -> {
+                    if (getActivity() != null) getActivity().onBackPressed();
+                }, 800);
+                return view;
+            }
+        }
+
         updateLevelInfo();
 
         Question q = currentLevel.getQuestion();
@@ -139,9 +170,13 @@ public class GameFragment extends Fragment {
             tvHint.setText(q.getHint() != null ? q.getHint() : "");
         }
 
+        // ★ 复习模式：顶部标题改为"错题复习"
+        if (isReviewMode() && tvLevelInfo != null) {
+            tvLevelInfo.setText("📕 错题复习 · 第 " + (currentLevel.getId() % 100) + " 关");
+        }
+
         buildOptions();
 
-        // ★ 首次进入：只需要等布局稳定，300 → 200
         handler.postDelayed(this::playCurrentQuestion, 200);
 
         return view;
@@ -229,7 +264,6 @@ public class GameFragment extends Fragment {
         return true;
     }
 
-    /** 播报选项内容对应的 MP3（按文本查表，不受 shuffle 影响） */
     private void speakOption(int index) {
         if (currentLevel == null) return;
         List<String> options = currentLevel.getQuestion().getOptions();
@@ -415,7 +449,6 @@ public class GameFragment extends Fragment {
                 .start();
     }
 
-    /** 播放当前题目语音（MP3 优先，TTS 兜底） */
     private void playCurrentQuestion() {
         if (currentLevel == null) return;
         int levelIndex = currentLevel.getId() % 100;
@@ -625,6 +658,25 @@ public class GameFragment extends Fragment {
     private void onCorrectAnswer() {
         int currentId = currentLevel.getId();
 
+        // ★ 复习模式：独立逻辑
+        if (isReviewMode()) {
+            boolean mastered = mistakeManager.markCorrect(currentId);
+            String msg = mastered
+                    ? "🎉 太棒了！已移出错题本"
+                    : "✅ 答对啦！再复习一次就掌握了";
+            Toast.makeText(getContext(), msg, Toast.LENGTH_SHORT).show();
+
+            isAnimating = true;
+            // 延时让用户看到 Toast，然后退出
+            handler.postDelayed(() -> {
+                if (getActivity() != null) {
+                    getActivity().onBackPressed();
+                }
+            }, 900);
+            return;
+        }
+
+        // 正常模式
         if (!progressManager.isLevelCompleted(currentId)) {
             progressManager.addStar();
         }
@@ -688,7 +740,6 @@ public class GameFragment extends Fragment {
 
         buildOptions();
 
-        // ★ 语音放到动画之后：先让界面淡入，再读题
         fadeInContent(() -> {
             isAnimating = false;
             handler.postDelayed(this::playCurrentQuestion, 100);
@@ -705,23 +756,34 @@ public class GameFragment extends Fragment {
     }
 
     private void handleWrongAnswer() {
-        progressManager.deductStars(2);
-        updateStarsDisplay();
-        int remainingStars = progressManager.getStars();
+        // ★ 无论什么模式，先记录错题
+        if (currentLevel != null) {
+            String prompt = currentLevel.getQuestion().getPrompt();
+            List<String> options = currentLevel.getQuestion().getOptions();
+            int correctIdx = currentLevel.getQuestion().getCorrectAnswerIndex();
+            String correctAnswer = (correctIdx >= 0 && correctIdx < options.size())
+                    ? options.get(correctIdx) : "";
+            mistakeManager.markWrong(currentLevel.getId(), currentChapterId, prompt, correctAnswer);
+        }
 
-        if (remainingStars <= 0) {
-            isAnimating = true;
-            resetAllProgressAndGoHome();
-            return;
+        // 复习模式：不扣星星、不检查星星是否用完
+        if (!isReviewMode()) {
+            progressManager.deductStars(2);
+            updateStarsDisplay();
+            int remainingStars = progressManager.getStars();
+
+            if (remainingStars <= 0) {
+                isAnimating = true;
+                resetAllProgressAndGoHome();
+                return;
+            }
         }
 
         isAnimating = true;
         int errorResId = getRandomErrorVideoResId();
 
         playVideoAndWait(videoError, errorResId, () -> {
-            // 不再打乱选项，直接刷新视图
             reshuffleOptions();
-            // ★ 语音放到动画之后
             fadeInContent(() -> {
                 isAnimating = false;
                 handler.postDelayed(this::playCurrentQuestion, 100);

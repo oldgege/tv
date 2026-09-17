@@ -21,6 +21,7 @@ import com.wengyj.tv.ui.chapter.ChapterFragment;
 import com.wengyj.tv.ui.grade.GradeFragment;
 import com.wengyj.tv.ui.level.LevelFragment;
 import com.wengyj.tv.ui.game.GameFragment;
+import com.wengyj.tv.ui.mistake.MistakeBookFragment;
 import com.wengyj.tv.utils.MusicManager;
 import com.wengyj.tv.utils.ProgressManager;
 import com.wengyj.tv.utils.TtsManager;
@@ -145,11 +146,7 @@ public class MainActivity extends AppCompatActivity {
 
         progressManager = new ProgressManager(this);
 
-        // ========== 关键：Activity 启动时提前异步初始化 TTS ==========
-        // 因为接下来会播放 4 段开场视频（约 20~30 秒），TTS 可以在此期间完成初始化
-        // 进入游戏时 TTS 已就绪，无需等待
         TtsManager.getInstance(this).ensureInit();
-        // ============================================================
 
         fragmentManager = getSupportFragmentManager();
         videoView = findViewById(R.id.video_view);
@@ -347,6 +344,26 @@ public class MainActivity extends AppCompatActivity {
                 .commitAllowingStateLoss();
     }
 
+    // ★ 新增：错题本入口
+    public void showMistakeBookFragment() {
+        if (isFinishing() || isDestroyed()) return;
+        MistakeBookFragment fragment = new MistakeBookFragment();
+        fragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null)
+                .commitAllowingStateLoss();
+    }
+
+    // ★ 新增：进入复习模式
+    public void showGameFragmentForReview(int levelId) {
+        if (isFinishing() || isDestroyed()) return;
+        GameFragment fragment = GameFragment.newInstance(levelId, GameFragment.MODE_REVIEW);
+        fragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack("review")
+                .commitAllowingStateLoss();
+    }
+
     public void navigateToGame(int levelId) {
         if (isFinishing() || isDestroyed()) return;
         fragmentManager.beginTransaction()
@@ -395,10 +412,8 @@ public class MainActivity extends AppCompatActivity {
         }
         handler.removeCallbacksAndMessages(null);
 
-        // 停止当前播报，但保留 TTS 实例（单例复用，下次启动更快）
         TtsManager.getInstance(this).stop();
 
-        // 仅当 Activity 真正结束时释放 BGM
         if (isFinishing()) {
             MusicManager.getInstance(this).release();
         }

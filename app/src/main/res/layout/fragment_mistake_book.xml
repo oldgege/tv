@@ -36,85 +36,10 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="退出"
+                android:text="返回"
                 android:textSize="24sp"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/tv_bgm_toggle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:focusable="true"
-            android:clickable="true"
-            android:background="@drawable/bg_back_button"
-            android:layout_marginStart="12dp"
-            android:paddingStart="16dp"
-            android:paddingEnd="20dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
-
-            <TextView
-                android:id="@+id/tv_bgm_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🔊"
-                android:textSize="24sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="音乐"
-                android:textSize="24sp"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:layout_marginStart="8dp" />
-        </LinearLayout>
-
-        <!-- ★ 新增：错题本入口 -->
-        <LinearLayout
-            android:id="@+id/tv_mistake_book"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:focusable="true"
-            android:clickable="true"
-            android:background="@drawable/bg_back_button"
-            android:layout_marginStart="12dp"
-            android:paddingStart="16dp"
-            android:paddingEnd="20dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="📕"
-                android:textSize="24sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="错题本"
-                android:textSize="24sp"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:layout_marginStart="8dp" />
-
-            <TextView
-                android:id="@+id/tv_mistake_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0"
-                android:textSize="20sp"
-                android:textColor="#FF5252"
-                android:textStyle="bold"
-                android:layout_marginStart="8dp"
-                android:visibility="gone" />
         </LinearLayout>
 
         <View
@@ -122,30 +47,42 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <TextView
-            android:id="@+id/tv_star_icon_grade"
+        <LinearLayout
+            android:id="@+id/tv_clear"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⭐"
-            android:textSize="28sp"
-            android:textColor="#FFD700" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/bg_back_button"
+            android:paddingStart="16dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
 
-        <TextView
-            android:id="@+id/tv_stars_grade"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="20"
-            android:textColor="#FFD700"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginStart="4dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🗑"
+                android:textSize="24sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="清空"
+                android:textSize="24sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- 标题 -->
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="请选择年级"
+        android:text="📕 错题本"
         android:textSize="32sp"
         android:textColor="#FFEB3B"
         android:textStyle="bold"
@@ -153,13 +90,27 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="16dp" />
 
+    <!-- 错题列表 -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_grades"
+        android:id="@+id/recycler_mistakes"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:padding="16dp"
         android:clipToPadding="false"
         android:focusable="true"
         android:focusableInTouchMode="true" />
+
+    <!-- 空状态 -->
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text="🎉 太棒了！暂时没有错题"
+        android:textSize="24sp"
+        android:textColor="#888888"
+        android:gravity="center"
+        android:visibility="gone" />
 
 </LinearLayout>
