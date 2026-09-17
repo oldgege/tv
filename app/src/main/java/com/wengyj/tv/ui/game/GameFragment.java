@@ -228,7 +228,7 @@ public class GameFragment extends Fragment {
         return true;
     }
 
-    /** 播报选项内容对应的 MP3 */
+    /** 播报选项内容对应的 MP3（按文本查表，不受 shuffle 影响） */
     private void speakOption(int index) {
         if (currentLevel == null) return;
         List<String> options = currentLevel.getQuestion().getOptions();
@@ -236,7 +236,7 @@ public class GameFragment extends Fragment {
 
         int levelIndex = currentLevel.getId() % 100;
         String optionText = options.get(index);
-        speechManager.speakOption(currentChapterId, levelIndex, index + 1, optionText);
+        speechManager.speakOption(currentChapterId, levelIndex, optionText);
     }
 
     private void updateStarsDisplay() {
