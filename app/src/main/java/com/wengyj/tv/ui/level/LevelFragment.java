@@ -53,7 +53,7 @@ public class LevelFragment extends Fragment {
             chapterId = getArguments().getInt(ARG_CHAPTER_ID);
         }
         progressManager = new ProgressManager(getContext());
-        speechManager = new SpeechManager(getContext());
+        speechManager = SpeechManager.getInstance(getContext());
     }
 
     @Nullable
@@ -105,8 +105,9 @@ public class LevelFragment extends Fragment {
 
             recyclerView.post(() -> recyclerView.requestFocus());
 
+            // ★ 500ms → 250ms
             handler.postDelayed(() ->
-                    speechManager.speakUi("level_menu", "请选择关卡"), 500);
+                    speechManager.speakUi("level_menu", "请选择关卡"), 250);
         } else {
             Toast.makeText(getContext(), "章节数据错误: " + chapterId, Toast.LENGTH_SHORT).show();
         }
@@ -162,12 +163,14 @@ public class LevelFragment extends Fragment {
     }
 
     @Override
-    public void onDestroy() {
-        if (speechManager != null) {
-            speechManager.release();
-            speechManager = null;
-        }
+    public void onDestroyView() {
         handler.removeCallbacksAndMessages(null);
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
+        speechManager = null;
         super.onDestroy();
     }
 }

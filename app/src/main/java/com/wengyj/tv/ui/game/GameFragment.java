@@ -84,7 +84,7 @@ public class GameFragment extends Fragment {
             levelId = getArguments().getInt(ARG_LEVEL_ID);
         }
         progressManager = new ProgressManager(getContext());
-        speechManager = new SpeechManager(getContext());
+        speechManager = SpeechManager.getInstance(getContext());
     }
 
     @Nullable
@@ -141,7 +141,8 @@ public class GameFragment extends Fragment {
 
         buildOptions();
 
-        handler.postDelayed(this::playCurrentQuestion, 300);
+        // ★ 首次进入：只需要等布局稳定，300 → 200
+        handler.postDelayed(this::playCurrentQuestion, 200);
 
         return view;
     }
@@ -423,30 +424,30 @@ public class GameFragment extends Fragment {
     }
 
     @Override
-    public void onDestroy() {
+    public void onDestroyView() {
+        handler.removeCallbacksAndMessages(null);
         if (contentContainer != null) {
             contentContainer.animate().cancel();
         }
         clearOptionsContainer();
-
-        if (speechManager != null) {
-            speechManager.release();
-            speechManager = null;
-        }
-
         if (videoSuccess != null) {
             videoSuccess.stopPlayback();
         }
         if (videoError != null) {
             videoError.stopPlayback();
         }
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
         MainActivity activity = (MainActivity) getActivity();
         if (activity != null) {
             activity.clearVideoKeyListener();
             activity.clearNumberKeyListener();
         }
         MusicManager.getInstance(getContext()).restoreVolume();
-        handler.removeCallbacksAndMessages(null);
+        speechManager = null;
         super.onDestroy();
     }
 
@@ -540,7 +541,6 @@ public class GameFragment extends Fragment {
             return;
         }
 
-        // 播放视频前停止语音
         if (speechManager != null) speechManager.stop();
 
         final boolean[] completed = {false};
@@ -688,11 +688,11 @@ public class GameFragment extends Fragment {
 
         buildOptions();
 
+        // ★ 语音放到动画之后：先让界面淡入，再读题
         fadeInContent(() -> {
             isAnimating = false;
+            handler.postDelayed(this::playCurrentQuestion, 100);
         });
-
-        handler.postDelayed(this::playCurrentQuestion, 300);
     }
 
     private void checkAnswer(int selectedIndex, RelativeLayout selectedRoot) {
@@ -721,18 +721,15 @@ public class GameFragment extends Fragment {
         playVideoAndWait(videoError, errorResId, () -> {
             // 不再打乱选项，直接刷新视图
             reshuffleOptions();
+            // ★ 语音放到动画之后
             fadeInContent(() -> {
                 isAnimating = false;
+                handler.postDelayed(this::playCurrentQuestion, 100);
             });
-            handler.postDelayed(this::playCurrentQuestion, 300);
         });
     }
 
-    /**
-     * 答错后：不再打乱选项顺序，直接刷新视图
-     */
     private void reshuffleOptions() {
-        // 选项不再打乱，仅重建视图
         buildOptions();
     }
 }

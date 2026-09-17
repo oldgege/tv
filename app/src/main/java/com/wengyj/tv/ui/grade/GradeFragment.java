@@ -48,7 +48,7 @@ public class GradeFragment extends Fragment {
         tvBack = view.findViewById(R.id.tv_back);
 
         progressManager = new ProgressManager(getContext());
-        speechManager = new SpeechManager(getContext());
+        speechManager = SpeechManager.getInstance(getContext());
 
         recyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
         recyclerView.setHasFixedSize(true);
@@ -88,8 +88,9 @@ public class GradeFragment extends Fragment {
 
         recyclerView.post(() -> recyclerView.requestFocus());
 
+        // ★ 500ms → 250ms，菜单提示音响应更快
         handler.postDelayed(() ->
-                speechManager.speakUi("grade_menu", "请选择年级"), 500);
+                speechManager.speakUi("grade_menu", "请选择年级"), 250);
 
         return view;
     }
@@ -119,12 +120,14 @@ public class GradeFragment extends Fragment {
     }
 
     @Override
-    public void onDestroy() {
-        if (speechManager != null) {
-            speechManager.release();
-            speechManager = null;
-        }
+    public void onDestroyView() {
         handler.removeCallbacksAndMessages(null);
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
+        speechManager = null;
         super.onDestroy();
     }
 }
