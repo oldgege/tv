@@ -60,27 +60,29 @@ public class ChapterDataSource {
     }
 
     /**
-     * 创建选择题：选项不打乱，正确选项固定在第一位（位置由算法保证）
+     * 创建选择题：★ 创建时打乱一次选项顺序，记录正确索引
+     * 由于 ChapterDataSource 使用静态缓存，每个题目的选项顺序只打乱一次，
+     * 应用运行期间保持不变。
      */
     private static Question createChoiceQuestion(String prompt, String correctAnswer, String[] wrongAnswers, String hint) {
         List<String> options = new ArrayList<>();
         options.add(correctAnswer);
         Collections.addAll(options, wrongAnswers);
-        // 不再打乱顺序
+        Collections.shuffle(options);  // ★ 打乱一次
         int correctIndex = options.indexOf(correctAnswer);
         return new Question(Question.Type.CHOICE, prompt, options, correctIndex, hint, null);
     }
 
     /**
-     * 创建听力题：选项不打乱
+     * 创建听力题：★ 同样打乱一次
      */
     private static Question createListenQuestion(String audioText, String correctAnswer, String[] wrongAnswers) {
         List<String> options = new ArrayList<>();
         options.add(correctAnswer);
         Collections.addAll(options, wrongAnswers);
-        // 不再打乱顺序
+        Collections.shuffle(options);  // ★ 打乱一次
         int correctIndex = options.indexOf(correctAnswer);
-        return new Question(Question.Type.LISTEN_SELECT, "🎧 听音选字", options, correctIndex, "", null, audioText);
+        return new Question(Question.Type.LISTEN_SELECT, "🎤 听音选字", options, correctIndex, "", null, audioText);
     }
 
     private static Chapter createChapterFromData(int chapterId, String title, String subtitle, String[][] data) {
