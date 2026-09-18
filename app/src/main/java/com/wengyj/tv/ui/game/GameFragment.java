@@ -9,7 +9,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -49,7 +48,7 @@ public class GameFragment extends Fragment {
     private static final long FADE_IN_DURATION = 250;
 
     private int levelId;
-    private int mode = MODE_NORMAL;   // ★
+    private int mode = MODE_NORMAL;
     private Level currentLevel;
     private int currentChapterId = -1;
 
@@ -64,7 +63,7 @@ public class GameFragment extends Fragment {
     private VideoView videoSuccess;
     private VideoView videoError;
     private ProgressManager progressManager;
-    private MistakeManager mistakeManager;   // ★
+    private MistakeManager mistakeManager;
 
     private SpeechManager speechManager;
 
@@ -101,7 +100,7 @@ public class GameFragment extends Fragment {
             mode = getArguments().getInt(ARG_MODE, MODE_NORMAL);
         }
         progressManager = new ProgressManager(getContext());
-        mistakeManager = new MistakeManager(getContext());   // ★
+        mistakeManager = new MistakeManager(getContext());
         speechManager = SpeechManager.getInstance(getContext());
     }
 
@@ -147,7 +146,7 @@ public class GameFragment extends Fragment {
             return view;
         }
 
-        // ★ 复习模式：校验题目是否已更新
+        // 复习模式：校验题目是否已更新
         if (isReviewMode()) {
             MistakeManager.Mistake m = mistakeManager.get(levelId);
             if (m != null && !m.prompt.equals(currentLevel.getQuestion().getPrompt())) {
@@ -165,12 +164,12 @@ public class GameFragment extends Fragment {
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
         if (q.getType() == Question.Type.LISTEN_SELECT) {
-            tvHint.setText("🔊 仔细听，选出正确的字（按1-4可听选项）");
+            tvHint.setText("🔊 仔细听，选出正确的字（按1-4可听选项，长按选项也可听）");
         } else {
             tvHint.setText(q.getHint() != null ? q.getHint() : "");
         }
 
-        // ★ 复习模式：顶部标题改为"错题复习"
+        // 复习模式：顶部标题改为"错题复习"
         if (isReviewMode() && tvLevelInfo != null) {
             tvLevelInfo.setText("📕 错题复习 · 第 " + (currentLevel.getId() % 100) + " 关");
         }
@@ -264,6 +263,7 @@ public class GameFragment extends Fragment {
         return true;
     }
 
+    /** 播报选项内容对应的 MP3（按文本查表，不受 shuffle 影响） */
     private void speakOption(int index) {
         if (currentLevel == null) return;
         List<String> options = currentLevel.getQuestion().getOptions();
@@ -298,7 +298,7 @@ public class GameFragment extends Fragment {
             child.animate().cancel();
             child.setOnFocusChangeListener(null);
             child.setOnClickListener(null);
-            child.setOnTouchListener(null);
+            child.setOnLongClickListener(null);
         }
 
         optionsContainer.removeAllViews();
@@ -372,22 +372,18 @@ public class GameFragment extends Fragment {
 
             final int index = i;
 
+            // 短按 / 遥控器 OK：提交答案
             root.setOnClickListener(v -> {
                 if (isAnimating) return;
                 checkAnswer(index, root);
             });
 
-            root.setOnTouchListener((v, event) -> {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        if (isAnimating) return true;
-                        checkAnswer(index, root);
-                        return true;
-                    default:
-                        return true;
-                }
+            // ★ 长按：播报选项语音（触摸长按 / 遥控器长按 OK 均支持）
+            //   返回 true 表示已消费事件，松手时不会再触发 onClick
+            root.setOnLongClickListener(v -> {
+                if (isAnimating) return true;
+                speakOption(index);
+                return true;
             });
 
             root.setFocusable(true);
@@ -449,6 +445,7 @@ public class GameFragment extends Fragment {
                 .start();
     }
 
+    /** 播放当前题目语音（MP3 优先，TTS 兜底） */
     private void playCurrentQuestion() {
         if (currentLevel == null) return;
         int levelIndex = currentLevel.getId() % 100;
@@ -658,7 +655,7 @@ public class GameFragment extends Fragment {
     private void onCorrectAnswer() {
         int currentId = currentLevel.getId();
 
-        // ★ 复习模式：独立逻辑
+        // 复习模式：独立逻辑
         if (isReviewMode()) {
             boolean mastered = mistakeManager.markCorrect(currentId);
             String msg = mastered
@@ -667,7 +664,6 @@ public class GameFragment extends Fragment {
             Toast.makeText(getContext(), msg, Toast.LENGTH_SHORT).show();
 
             isAnimating = true;
-            // 延时让用户看到 Toast，然后退出
             handler.postDelayed(() -> {
                 if (getActivity() != null) {
                     getActivity().onBackPressed();
@@ -733,7 +729,7 @@ public class GameFragment extends Fragment {
         Question q = currentLevel.getQuestion();
         tvQuestion.setText(q.getPrompt());
         if (q.getType() == Question.Type.LISTEN_SELECT) {
-            tvHint.setText("🔊 仔细听，选出正确的字（按1-4可听选项）");
+            tvHint.setText("🔊 仔细听，选出正确的字（按1-4可听选项，长按选项也可听）");
         } else {
             tvHint.setText(q.getHint() != null ? q.getHint() : "");
         }
@@ -756,7 +752,7 @@ public class GameFragment extends Fragment {
     }
 
     private void handleWrongAnswer() {
-        // ★ 无论什么模式，先记录错题
+        // 无论什么模式，先记录错题
         if (currentLevel != null) {
             String prompt = currentLevel.getQuestion().getPrompt();
             List<String> options = currentLevel.getQuestion().getOptions();
