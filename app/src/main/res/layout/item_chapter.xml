@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp"
+    android:padding="8dp"
     android:clipChildren="false"
     android:clipToPadding="false">
 
@@ -14,7 +14,7 @@
         android:focusable="true"
         android:clickable="true"
         app:cardElevation="6dp"
-        app:cardCornerRadius="16dp"
+        app:cardCornerRadius="12dp"
         app:cardBackgroundColor="#333333">
 
         <FrameLayout
@@ -26,14 +26,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="24dp"
+                android:padding="12dp"
                 android:gravity="center"
                 android:background="@android:color/transparent">
 
                 <ImageView
                     android:id="@+id/iv_chapter_icon"
-                    android:layout_width="96dp"
-                    android:layout_height="96dp"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
                     android:src="@drawable/ic_chapter_placeholder" />
 
                 <TextView
@@ -41,28 +41,28 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="章节名"
-                    android:textSize="30sp"
+                    android:textSize="20sp"
                     android:textColor="#FFFFFF"
                     android:textStyle="bold"
-                    android:layout_marginTop="12dp" />
+                    android:layout_marginTop="8dp" />
 
                 <TextView
                     android:id="@+id/tv_chapter_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="副标题"
-                    android:textSize="20sp"
+                    android:textSize="14sp"
                     android:textColor="#DDDDDD"
-                    android:layout_marginTop="4dp" />
+                    android:layout_marginTop="3dp" />
             </LinearLayout>
 
             <!-- 锁图标（锁定时显示） -->
             <ImageView
                 android:id="@+id/iv_chapter_lock"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_gravity="top|end"
-                android:layout_margin="12dp"
+                android:layout_margin="8dp"
                 android:src="@drawable/ic_lock"
                 android:visibility="gone" />
         </FrameLayout>
