@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
@@ -47,6 +48,9 @@ public class GameFragment extends Fragment {
     private static final long FADE_OUT_DURATION = 150;
     private static final long FADE_IN_DURATION = 250;
 
+    /** 触摸屏长按判定阈值（毫秒） */
+    private static final long LONG_PRESS_DURATION_MS = 500;
+
     private int levelId;
     private int mode = MODE_NORMAL;
     private Level currentLevel;
@@ -68,6 +72,11 @@ public class GameFragment extends Fragment {
     private SpeechManager speechManager;
 
     private final Handler handler = new Handler();
+    /** 触摸屏长按专用 Handler，与主 handler 分离，避免 ACTION_DOWN 时误清其它延迟任务 */
+    private final Handler longPressHandler = new Handler();
+    /** 当前触摸是否已触发长按（用于 ACTION_UP 时判断要不要提交答案） */
+    private final boolean[] longPressFired = {false};
+
     private boolean isAnimating = false;
 
     private List<Integer> errorVideoList = null;
@@ -284,6 +293,9 @@ public class GameFragment extends Fragment {
     private void clearOptionsContainer() {
         if (optionsContainer == null) return;
 
+        // 清掉所有待执行的触摸长按
+        longPressHandler.removeCallbacksAndMessages(null);
+
         int count = optionsContainer.getChildCount();
         for (int i = 0; i < count; i++) {
             View child = optionsContainer.getChildAt(i);
@@ -299,6 +311,7 @@ public class GameFragment extends Fragment {
             child.setOnFocusChangeListener(null);
             child.setOnClickListener(null);
             child.setOnLongClickListener(null);
+            child.setOnTouchListener(null);
         }
 
         optionsContainer.removeAllViews();
@@ -372,14 +385,42 @@ public class GameFragment extends Fragment {
 
             final int index = i;
 
-            // 短按 / 遥控器 OK：提交答案
+            // ★ 触摸屏：单击直接提交答案 / 长按播报选项语音
+            //   通过 OnTouchListener 绕过 focusableInTouchMode 的"第一次触摸只获取焦点"行为
+            root.setOnTouchListener((v, event) -> {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        longPressFired[0] = false;
+                        longPressHandler.removeCallbacksAndMessages(null);
+                        longPressHandler.postDelayed(() -> {
+                            longPressFired[0] = true;
+                            if (!isAnimating) speakOption(index);
+                        }, LONG_PRESS_DURATION_MS);
+                        return true;
+
+                    case MotionEvent.ACTION_UP:
+                        longPressHandler.removeCallbacksAndMessages(null);
+                        if (!longPressFired[0] && !isAnimating) {
+                            checkAnswer(index, root);
+                        }
+                        return true;
+
+                    case MotionEvent.ACTION_CANCEL:
+                        longPressHandler.removeCallbacksAndMessages(null);
+                        return true;
+
+                    default:
+                        return true;
+                }
+            });
+
+            // 遥控器 OK 键：短按提交答案
             root.setOnClickListener(v -> {
                 if (isAnimating) return;
                 checkAnswer(index, root);
             });
 
-            // ★ 长按：播报选项语音（触摸长按 / 遥控器长按 OK 均支持）
-            //   返回 true 表示已消费事件，松手时不会再触发 onClick
+            // 遥控器长按 OK 键：播报选项语音
             root.setOnLongClickListener(v -> {
                 if (isAnimating) return true;
                 speakOption(index);
@@ -456,6 +497,7 @@ public class GameFragment extends Fragment {
     @Override
     public void onDestroyView() {
         handler.removeCallbacksAndMessages(null);
+        longPressHandler.removeCallbacksAndMessages(null);
         if (contentContainer != null) {
             contentContainer.animate().cancel();
         }
